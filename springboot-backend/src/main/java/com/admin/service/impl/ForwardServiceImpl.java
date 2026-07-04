@@ -104,7 +104,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         }
 
         // 7. 调用Gost服务创建转发
-        R gostResult = createGostServices(forward, tunnel, permissionResult.getLimiter(), nodeInfo, permissionResult.getUserTunnel());
+        R gostResult = createGostServices(forward, tunnel, resolveLimiter(forward, permissionResult.getLimiter()), nodeInfo, permissionResult.getUserTunnel());
 
         if (gostResult.getCode() != 0) {
             this.removeById(forward.getId());
@@ -227,10 +227,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         R gostResult;
         if (tunnelChanged) {
             // 隧道变化时：先删除原配置，再创建新配置
-            gostResult = updateGostServicesWithTunnelChange(existForward, updatedForward, tunnel, permissionResult != null ? permissionResult.getLimiter() : null, nodeInfo, userTunnel);
+            gostResult = updateGostServicesWithTunnelChange(existForward, updatedForward, tunnel, resolveLimiter(updatedForward, permissionResult != null ? permissionResult.getLimiter() : null), nodeInfo, userTunnel);
         } else {
             // 隧道未变化时：直接更新配置
-            gostResult = updateGostServices(updatedForward, tunnel, permissionResult != null ? permissionResult.getLimiter() : null, nodeInfo, userTunnel);
+            gostResult = updateGostServices(updatedForward, tunnel, resolveLimiter(updatedForward, permissionResult != null ? permissionResult.getLimiter() : null), nodeInfo, userTunnel);
         }
 
         if (gostResult.getCode() != 0) {
@@ -299,6 +299,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
     @Override
     public R resumeForward(Long id) {
+        Forward f = this.getById(id);
+        if (f != null && f.getExpTime() != null && f.getExpTime() < System.currentTimeMillis()) {
+            return R.err("该转发已到期,无法恢复");
+        }
         return changeForwardStatus(id, FORWARD_STATUS_ACTIVE, "恢复", "ResumeService");
     }
 
@@ -976,6 +980,13 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     }
 
     /**
+     * 单条转发自带限速规则优先,否则回退到用户隧道的默认规则(功能B)。
+     */
+    private Integer resolveLimiter(Forward forward, Integer fallback) {
+        return forward != null && forward.getSpeedId() != null ? forward.getSpeedId() : fallback;
+    }
+
+    /**
      * 创建Gost服务
      */
     private R createGostServices(Forward forward, Tunnel tunnel, Integer limiter, NodeInfo nodeInfo, UserTunnel userTunnel) {
@@ -1398,7 +1409,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         } else {
             limiter = userTunnel.getSpeedId();
         }
-        updateGostServices(forward, tunnel, limiter, nodeInfo, userTunnel);
+        updateGostServices(forward, tunnel, resolveLimiter(forward, limiter), nodeInfo, userTunnel);
     }
 
 

@@ -81,6 +81,27 @@ public class ResetFlowAsync {
             log.info("定时任务执行失败", e);
         }
     }
+
+    /**
+     * 单条转发到期处理(功能C):每分钟扫一次,到点即暂停。
+     * user()/userTunnel() 每天0点跑、精度不够,故单独加高频扫描。
+     */
+    @Scheduled(cron = "0 * * * * ?")
+    public void forwardExpiry() {
+        try {
+            List<Forward> list = forwardService.list(new QueryWrapper<Forward>()
+                    .eq("status", 1).isNotNull("exp_time").lt("exp_time", new Date().getTime()));
+            for (Forward forward : list) {
+                UserTunnel ut = userTunnelService.getOne(new QueryWrapper<UserTunnel>()
+                        .eq("user_id", forward.getUserId()).eq("tunnel_id", forward.getTunnelId()));
+                pauseForwardService(forward, ut != null ? ut.getId() : null);
+                forward.setStatus(0);
+                forwardService.updateById(forward);
+            }
+        } catch (Exception e) {
+            log.info("单条转发到期任务执行失败", e);
+        }
+    }
     
     /**
      * 重置用户流量

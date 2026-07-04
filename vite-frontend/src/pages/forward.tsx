@@ -64,6 +64,7 @@ interface Forward {
   userName?: string;
   userId?: number;
   inx?: number;
+  expTime?: number;
 }
 
 interface Tunnel {
@@ -82,6 +83,7 @@ interface ForwardForm {
   remoteAddr: string;
   interfaceName?: string;
   strategy: string;
+  expTime?: number | null;
 }
 
 interface AddressItem {
@@ -191,7 +193,8 @@ export default function ForwardPage() {
     inPort: null,
     remoteAddr: '',
     interfaceName: '',
-    strategy: 'fifo'
+    strategy: 'fifo',
+    expTime: null
   });
   
   // 表单验证错误
@@ -444,7 +447,8 @@ export default function ForwardPage() {
       inPort: null,
       remoteAddr: '',
       interfaceName: '',
-      strategy: 'fifo'
+      strategy: 'fifo',
+      expTime: null
     });
     setSelectedTunnel(null);
     setErrors({});
@@ -462,7 +466,8 @@ export default function ForwardPage() {
       inPort: forward.inPort,
       remoteAddr: forward.remoteAddr.split(',').join('\n'),
       interfaceName: forward.interfaceName || '',
-      strategy: forward.strategy || 'fifo'
+      strategy: forward.strategy || 'fifo',
+      expTime: forward.expTime ?? null
     });
     const tunnel = tunnels.find(t => t.id === forward.tunnelId);
     setSelectedTunnel(tunnel || null);
@@ -541,7 +546,8 @@ export default function ForwardPage() {
           inPort: form.inPort,
           remoteAddr: processedRemoteAddr,
           interfaceName: form.interfaceName,
-          strategy: addressCount > 1 ? form.strategy : 'fifo'
+          strategy: addressCount > 1 ? form.strategy : 'fifo',
+          expTime: form.expTime
         };
         res = await updateForward(updateData);
       } else {
@@ -552,7 +558,8 @@ export default function ForwardPage() {
           inPort: form.inPort,
           remoteAddr: processedRemoteAddr,
           interfaceName: form.interfaceName,
-          strategy: addressCount > 1 ? form.strategy : 'fifo'
+          strategy: addressCount > 1 ? form.strategy : 'fifo',
+          expTime: form.expTime
         };
         res = await createForward(createData);
       }
@@ -1638,7 +1645,16 @@ export default function ForwardPage() {
                       variant="bordered"
                       description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
                     />
-                    
+
+                    <Input
+                      label="到期时间"
+                      type="datetime-local"
+                      value={form.expTime ? new Date(form.expTime - new Date(form.expTime).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                      onChange={(e) => setForm(prev => ({ ...prev, expTime: e.target.value ? new Date(e.target.value).getTime() : null }))}
+                      variant="bordered"
+                      description="留空 = 永不过期;到点自动暂停(每分钟检查一次)"
+                    />
+
                     {getAddressCount(form.remoteAddr) > 1 && (
                       <Select
                         label="负载策略"

@@ -31,4 +31,10 @@ public class ForwardDto {
 
     private String interfaceName;
 
+    /** 绑定限速规则ID(功能B,可选) */
+    private Integer speedId;
+
+    /** 到期时间 epoch ms(功能C,可选,空=永不过期) */
+    private Long expTime;
+
 } 

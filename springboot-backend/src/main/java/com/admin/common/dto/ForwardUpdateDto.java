@@ -37,4 +37,10 @@ public class ForwardUpdateDto {
 
     @TableField(updateStrategy = FieldStrategy.IGNORED)
     private String interfaceName;
+
+    @TableField(updateStrategy = FieldStrategy.IGNORED)
+    private Integer speedId;
+
+    @TableField(updateStrategy = FieldStrategy.IGNORED)
+    private Long expTime;
 } 

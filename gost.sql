@@ -43,7 +43,9 @@ CREATE TABLE `forward` (
   `created_time` bigint(20) NOT NULL,
   `updated_time` bigint(20) NOT NULL,
   `status` int(10) NOT NULL,
-  `inx` int(10) NOT NULL DEFAULT '0'
+  `inx` int(10) NOT NULL DEFAULT '0',
+  `speed_id` int(10) DEFAULT NULL,
+  `exp_time` bigint(20) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
