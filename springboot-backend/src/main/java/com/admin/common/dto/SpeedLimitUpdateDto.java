@@ -23,4 +23,10 @@ public class SpeedLimitUpdateDto {
 
     @NotBlank(message = "隧道名称不能为空")
     private String tunnelName;
+
+    /** 限速模式:0=共享 1=每连接 2=每客户端IP(默认0) */
+    private Integer mode;
+
+    /** 总带宽天花板 Mbps,0=不设(防机房限流) */
+    private Integer total;
 } 

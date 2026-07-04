@@ -249,6 +249,8 @@ public class SpeedLimitServiceImpl extends ServiceImpl<SpeedLimitMapper, SpeedLi
         speedLimit.setCreatedTime(currentTime);
         speedLimit.setUpdatedTime(currentTime);
         speedLimit.setStatus(SPEED_LIMIT_ACTIVE_STATUS);
+        if (speedLimit.getMode() == null) speedLimit.setMode(0);
+        if (speedLimit.getTotal() == null) speedLimit.setTotal(0);
         
         return speedLimit;
     }
@@ -287,12 +289,16 @@ public class SpeedLimitServiceImpl extends ServiceImpl<SpeedLimitMapper, SpeedLi
      */
     private R addGostLimiter(SpeedLimit speedLimit, Tunnel tunnel) {
         String speedInMBps = convertBitsToMBps(speedLimit.getSpeed());
+        String totalInMBps = (speedLimit.getTotal() != null && speedLimit.getTotal() > 0)
+                ? convertBitsToMBps(speedLimit.getTotal()) : null;
         Node node = nodeService.getNodeById(tunnel.getInNodeId());
-        
+
         GostDto gostResult = GostUtil.AddLimiters(
            node.getId(),
-            speedLimit.getId(), 
-            speedInMBps
+            speedLimit.getId(),
+            speedInMBps,
+            speedLimit.getMode(),
+            totalInMBps
         );
         
         return isGostOperationSuccess(gostResult) ? R.ok() : R.err(gostResult.getMsg());
@@ -307,14 +313,16 @@ public class SpeedLimitServiceImpl extends ServiceImpl<SpeedLimitMapper, SpeedLi
      */
     private R updateGostLimiter(SpeedLimit speedLimit, Tunnel tunnel) {
         String speedInMBps = convertBitsToMBps(speedLimit.getSpeed());
+        String totalInMBps = (speedLimit.getTotal() != null && speedLimit.getTotal() > 0)
+                ? convertBitsToMBps(speedLimit.getTotal()) : null;
         Node node = nodeService.getNodeById(tunnel.getInNodeId());
 
         // 尝试更新限速器
-        GostDto gostResult = GostUtil.UpdateLimiters(node.getId(), speedLimit.getId(), speedInMBps);
-        
+        GostDto gostResult = GostUtil.UpdateLimiters(node.getId(), speedLimit.getId(), speedInMBps, speedLimit.getMode(), totalInMBps);
+
         // 如果限速器不存在，则创建新的
         if (gostResult.getMsg().contains(GOST_NOT_FOUND_MSG)) {
-            gostResult = GostUtil.AddLimiters(node.getId(), speedLimit.getId(), speedInMBps);
+            gostResult = GostUtil.AddLimiters(node.getId(), speedLimit.getId(), speedInMBps, speedLimit.getMode(), totalInMBps);
         }
         
         return isGostOperationSuccess(gostResult) ? R.ok() : R.err(gostResult.getMsg());

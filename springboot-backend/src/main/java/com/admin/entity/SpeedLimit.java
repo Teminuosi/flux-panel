@@ -50,4 +50,10 @@ public class SpeedLimit implements Serializable {
 
     private String tunnelName;
 
+    /** 限速模式:0=共享(整条限速器一个池) 1=每连接 2=每客户端IP */
+    private Integer mode;
+
+    /** 总带宽天花板(Mbps,0=不设),防机房限流;与 mode 的 per-IP/每连接叠加生效 */
+    private Integer total;
+
 }

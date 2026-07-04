@@ -21,6 +21,8 @@ interface SpeedLimitRule {
   id: number;
   name: string;
   speed: number;
+  mode: number;
+  total: number;
   status: number;
   tunnelId: number;
   tunnelName: string;
@@ -37,6 +39,8 @@ interface SpeedLimitForm {
   id?: number;
   name: string;
   speed: number;
+  mode: number;
+  total: number;
   tunnelId: number | null;
   tunnelName: string;
   status: number;
@@ -59,6 +63,8 @@ export default function LimitPage() {
   const [form, setForm] = useState<SpeedLimitForm>({
     name: '',
     speed: 100,
+    mode: 0,
+    total: 0,
     tunnelId: null,
     tunnelName: '',
     status: 1
@@ -127,6 +133,8 @@ export default function LimitPage() {
     setForm({
       name: '',
       speed: 100,
+      mode: 0,
+      total: 0,
       tunnelId: null,
       tunnelName: '',
       status: 1
@@ -142,6 +150,8 @@ export default function LimitPage() {
       id: rule.id,
       name: rule.name,
       speed: rule.speed,
+      mode: rule.mode ?? 0,
+      total: rule.total ?? 0,
       tunnelId: rule.tunnelId,
       tunnelName: rule.tunnelName,
       status: rule.status
@@ -379,7 +389,38 @@ export default function LimitPage() {
                         </div>
                       }
                     />
-                    
+
+                    <Select
+                      label="限速模式"
+                      placeholder="选择限速粒度"
+                      selectedKeys={[String(form.mode ?? 0)]}
+                      onSelectionChange={(keys) => {
+                        const k = Array.from(keys)[0] as string;
+                        setForm(prev => ({ ...prev, mode: parseInt(k) || 0 }));
+                      }}
+                      variant="bordered"
+                      description="每客户端IP:防单人吃满带宽"
+                    >
+                      <SelectItem key="0">共享(整条限速器一个池)</SelectItem>
+                      <SelectItem key="1">每连接各自封顶</SelectItem>
+                      <SelectItem key="2">每客户端IP各自封顶</SelectItem>
+                    </Select>
+
+                    <Input
+                      label="总带宽天花板"
+                      placeholder="0 = 不设"
+                      type="number"
+                      value={(form.total ?? 0).toString()}
+                      onChange={(e) => setForm(prev => ({ ...prev, total: parseInt(e.target.value) || 0 }))}
+                      variant="bordered"
+                      description="整条限速器总带宽上限,与上面每IP/每连接叠加,防机房限流。0=不限"
+                      endContent={
+                        <div className="pointer-events-none flex items-center">
+                          <span className="text-default-400 text-small">Mbps</span>
+                        </div>
+                      }
+                    />
+
                     <Select
                       label="绑定隧道"
                       placeholder="请选择要绑定的隧道"

@@ -13,13 +13,13 @@ import java.util.Objects;
 public class GostUtil {
 
 
-    public static GostDto AddLimiters(Long node_id, Long name, String speed) {
-        JSONObject data = createLimiterData(name, speed);
+    public static GostDto AddLimiters(Long node_id, Long name, String speed, Integer mode, String total) {
+        JSONObject data = createLimiterData(name, speed, mode, total);
         return WebSocketServer.send_msg(node_id, data, "AddLimiters");
     }
 
-    public static GostDto UpdateLimiters(Long node_id, Long name, String speed) {
-        JSONObject data = createLimiterData(name, speed);
+    public static GostDto UpdateLimiters(Long node_id, Long name, String speed, Integer mode, String total) {
+        JSONObject data = createLimiterData(name, speed, mode, total);
         JSONObject req = new JSONObject();
         req.put("limiter", name + "");
         req.put("data", data);
@@ -289,11 +289,26 @@ public class GostUtil {
         return WebSocketServer.send_msg(node_id, data, "DeleteChains");
     }
 
-    private static JSONObject createLimiterData(Long name, String speed) {
+    // mode:  0=共享(整条限速器一个池) 1=每连接 2=每客户端IP
+    // total: 非空时额外叠加一道整条限速器总带宽天花板(MB/s),防机房限流。
+    //        gost 的 $(服务层)与 per-IP/每连接(连接层)在不同层各自生效、可叠加。
+    private static JSONObject createLimiterData(Long name, String speed, Integer mode, String total) {
         JSONObject data = new JSONObject();
         data.put("name", name.toString());
         JSONArray limits = new JSONArray();
-        limits.add("$ " + speed + "MB " + speed + "MB");
+        String rate = speed + "MB " + speed + "MB";
+        if (mode != null && mode == 1) {
+            limits.add("$$ " + rate);            // 每条连接各自封顶
+        } else if (mode != null && mode == 2) {
+            limits.add("0.0.0.0/0 " + rate);     // 每个客户端 IP 各自封顶(IPv4)
+            limits.add("::/0 " + rate);          // IPv6
+        } else {
+            limits.add("$ " + rate);             // 整条限速器共享(原行为)
+        }
+        // mode=0 本身已是 $,无需重复天花板
+        if (total != null && !total.isEmpty() && mode != null && mode != 0) {
+            limits.add("$ " + total + "MB " + total + "MB");
+        }
         data.put("limits", limits);
         return data;
     }

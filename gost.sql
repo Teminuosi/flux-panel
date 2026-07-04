@@ -79,6 +79,8 @@ CREATE TABLE `speed_limit` (
   `id` int(10) NOT NULL,
   `name` varchar(100) NOT NULL,
   `speed` int(10) NOT NULL,
+  `mode` tinyint(4) NOT NULL DEFAULT '0',
+  `total` int(10) NOT NULL DEFAULT '0',
   `tunnel_id` int(10) NOT NULL,
   `tunnel_name` varchar(100) NOT NULL,
   `created_time` bigint(20) NOT NULL,
