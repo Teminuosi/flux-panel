@@ -42,7 +42,8 @@ import {
   pauseForwardService,
   resumeForwardService,
   diagnoseForward,
-  updateForwardOrder
+  updateForwardOrder,
+  getSpeedLimitList
 } from "@/api";
 import { JwtUtil } from "@/utils/jwt";
 
@@ -65,6 +66,7 @@ interface Forward {
   userId?: number;
   inx?: number;
   expTime?: number;
+  speedId?: number;
 }
 
 interface Tunnel {
@@ -84,6 +86,7 @@ interface ForwardForm {
   interfaceName?: string;
   strategy: string;
   expTime?: number | null;
+  speedId?: number | null;
 }
 
 interface AddressItem {
@@ -125,6 +128,7 @@ export default function ForwardPage() {
   const [loading, setLoading] = useState(true);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
+  const [speedRules, setSpeedRules] = useState<any[]>([]);
   
   // 检测是否为移动端
   const [isMobile, setIsMobile] = useState(false);
@@ -194,7 +198,8 @@ export default function ForwardPage() {
     remoteAddr: '',
     interfaceName: '',
     strategy: 'fifo',
-    expTime: null
+    expTime: null,
+    speedId: null
   });
   
   // 表单验证错误
@@ -269,9 +274,10 @@ export default function ForwardPage() {
   const loadData = async (lod = true) => {
     setLoading(lod);
     try {
-      const [forwardsRes, tunnelsRes] = await Promise.all([
+      const [forwardsRes, tunnelsRes, speedRulesRes] = await Promise.all([
         getForwardList(),
-        userTunnel()
+        userTunnel(),
+        getSpeedLimitList()
       ]);
       
       if (forwardsRes.code === 0) {
@@ -339,6 +345,10 @@ export default function ForwardPage() {
         setTunnels(tunnelsRes.data || []);
       } else {
         console.warn('获取隧道列表失败:', tunnelsRes.msg);
+      }
+
+      if (speedRulesRes?.code === 0) {
+        setSpeedRules(speedRulesRes.data || []);
       }
     } catch (error) {
       console.error('加载数据失败:', error);
@@ -448,7 +458,8 @@ export default function ForwardPage() {
       remoteAddr: '',
       interfaceName: '',
       strategy: 'fifo',
-      expTime: null
+      expTime: null,
+      speedId: null
     });
     setSelectedTunnel(null);
     setErrors({});
@@ -467,7 +478,8 @@ export default function ForwardPage() {
       remoteAddr: forward.remoteAddr.split(',').join('\n'),
       interfaceName: forward.interfaceName || '',
       strategy: forward.strategy || 'fifo',
-      expTime: forward.expTime ?? null
+      expTime: forward.expTime ?? null,
+      speedId: forward.speedId ?? null
     });
     const tunnel = tunnels.find(t => t.id === forward.tunnelId);
     setSelectedTunnel(tunnel || null);
@@ -547,7 +559,8 @@ export default function ForwardPage() {
           remoteAddr: processedRemoteAddr,
           interfaceName: form.interfaceName,
           strategy: addressCount > 1 ? form.strategy : 'fifo',
-          expTime: form.expTime
+          expTime: form.expTime,
+          speedId: form.speedId
         };
         res = await updateForward(updateData);
       } else {
@@ -559,7 +572,8 @@ export default function ForwardPage() {
           remoteAddr: processedRemoteAddr,
           interfaceName: form.interfaceName,
           strategy: addressCount > 1 ? form.strategy : 'fifo',
-          expTime: form.expTime
+          expTime: form.expTime,
+          speedId: form.speedId
         };
         res = await createForward(createData);
       }
@@ -1645,6 +1659,24 @@ export default function ForwardPage() {
                       variant="bordered"
                       description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
                     />
+
+                    <Select
+                      label="限速规则"
+                      placeholder="默认(用隧道默认规则)"
+                      selectedKeys={form.speedId ? [String(form.speedId)] : []}
+                      onSelectionChange={(keys) => {
+                        const k = Array.from(keys)[0] as string;
+                        setForm(prev => ({ ...prev, speedId: k ? parseInt(k) : null }));
+                      }}
+                      variant="bordered"
+                      description="给这条转发单独绑定限速规则,留空则用该隧道默认规则"
+                    >
+                      {speedRules
+                        .filter((r: any) => r.tunnelId === form.tunnelId)
+                        .map((r: any) => (
+                          <SelectItem key={r.id}>{r.name}</SelectItem>
+                        ))}
+                    </Select>
 
                     <Input
                       label="到期时间"
