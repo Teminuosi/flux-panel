@@ -1,0 +1,8 @@
+/* P2 多主题:每套皮肤一层固定渐变背景(默认 aurora)。
+   配合布局把外层/主内容透明化、侧栏/头部磨砂,让渐变透出来。 */
+html.aurora,  html.aurora body   { background: linear-gradient(135deg, #1f1c3d 0%, #302b63 45%, #7c3aed 100%) fixed; }
+html.mesh,    html.mesh body     { background: linear-gradient(135deg, #c2e9fb 0%, #e0c3fc 50%, #fbc2eb 100%) fixed; }
+html.deepsea, html.deepsea body  { background: linear-gradient(135deg, #04223b 0%, #0e3a5f 50%, #2196c9 100%) fixed; }
+html.sunrise, html.sunrise body  { background: linear-gradient(135deg, #ffd3a5 0%, #ffaa96 45%, #b4a0ff 100%) fixed; }
+html.cyber,   html.cyber body    { background: linear-gradient(135deg, #2a0a3a 0%, #ec4899 55%, #22d3ee 100%) fixed; }
+html.mint,    html.mint body     { background: linear-gradient(135deg, #a7f3d0 0%, #bae6fd 100%) fixed; }
