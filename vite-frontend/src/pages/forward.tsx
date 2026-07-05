@@ -506,7 +506,7 @@ export default function ForwardPage() {
         loadData();
       } else {
         // 删除失败，询问是否强制删除
-        const confirmed = window.confirm(`常规删除失败：${res.msg || '删除失败'}\n\n是否需要强制删除？\n\n⚠️ 注意：强制删除不会去验证节点端是否已经删除对应的转发服务。`);
+        const confirmed = window.confirm(`常规删除失败：${res.msg || '删除失败'}\n\n是否需要强制删除？\n\n⚠️ 注意：强制删除不会去验证转发机端是否已经删除对应的转发服务。`);
         if (confirmed) {
           const forceRes = await forceDeleteForward(forwardToDelete.id);
           if (forceRes.code === 0) {
@@ -2110,7 +2110,7 @@ export default function ForwardPage() {
                                 <div>
                                   <h3 className="text-lg font-semibold text-foreground">{result.description}</h3>
                                   <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-small text-default-500">节点: {result.nodeName}</span>
+                                    <span className="text-small text-default-500">转发机: {result.nodeName}</span>
                                     <Chip 
                                       color={result.success ? 'success' : 'danger'} 
                                       variant="flat" 

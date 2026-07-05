@@ -102,7 +102,7 @@ export default function NodePage() {
     };
   }, []);
 
-  // 加载节点列表
+  // 加载转发机列表
   const loadNodes = async () => {
     setLoading(true);
     try {
@@ -115,7 +115,7 @@ export default function NodePage() {
           copyLoading: false
         })));
       } else {
-        toast.error(res.msg || '加载节点列表失败');
+        toast.error(res.msg || '加载转发机列表失败');
       }
     } catch (error) {
       toast.error('网络错误，请重试');
@@ -367,11 +367,11 @@ export default function NodePage() {
     const newErrors: Record<string, string> = {};
     
     if (!form.name.trim()) {
-      newErrors.name = '请输入节点名称';
+      newErrors.name = '请输入转发机名称';
     } else if (form.name.trim().length < 2) {
-      newErrors.name = '节点名称长度至少2位';
+      newErrors.name = '转发机名称长度至少2位';
     } else if (form.name.trim().length > 50) {
-      newErrors.name = '节点名称长度不能超过50位';
+      newErrors.name = '转发机名称长度不能超过50位';
     }
     
     if (!form.ipString.trim()) {
@@ -410,19 +410,19 @@ export default function NodePage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // 新增节点
+  // 新增转发机
   const handleAdd = () => {
-    setDialogTitle('新增节点');
+    setDialogTitle('新增转发机');
     setIsEdit(false);
     setDialogVisible(true);
     resetForm();
     setProtocolDisabled(true);
-    setProtocolDisabledReason('节点未在线，等待节点上线后再设置');
+    setProtocolDisabledReason('转发机未在线，等待转发机上线后再设置');
   };
 
-  // 编辑节点
+  // 编辑转发机
   const handleEdit = (node: Node) => {
-    setDialogTitle('编辑节点');
+    setDialogTitle('编辑转发机');
     setIsEdit(true);
     setForm({
       id: node.id,
@@ -437,11 +437,11 @@ export default function NodePage() {
     });
     const offline = node.connectionStatus !== 'online';
     setProtocolDisabled(offline);
-    setProtocolDisabledReason(offline ? '节点未在线，等待节点上线后再设置' : '');
+    setProtocolDisabledReason(offline ? '转发机未在线，等待转发机上线后再设置' : '');
     setDialogVisible(true);
   };
 
-  // 删除节点
+  // 删除转发机
   const handleDelete = (node: Node) => {
     setNodeToDelete(node);
     setDeleteModalOpen(true);
@@ -608,7 +608,7 @@ export default function NodePage() {
      
         </div>
 
-        {/* 节点列表 */}
+        {/* 转发机列表 */}
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex items-center gap-3">
@@ -626,8 +626,8 @@ export default function NodePage() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-foreground">暂无节点配置</h3>
-                  <p className="text-default-500 text-sm mt-1">还没有创建任何节点配置，点击上方按钮开始创建</p>
+                  <h3 className="text-lg font-semibold text-foreground">暂无转发机配置</h3>
+                  <p className="text-default-500 text-sm mt-1">还没有创建任何转发机配置，点击上方按钮开始创建</p>
                 </div>
               </div>
             </CardBody>
@@ -824,7 +824,7 @@ export default function NodePage() {
           </div>
         )}
 
-        {/* 新增/编辑节点对话框 */}
+        {/* 新增/编辑转发机对话框 */}
         <Modal 
           isOpen={dialogVisible} 
           onClose={() => setDialogVisible(false)}
@@ -838,8 +838,8 @@ export default function NodePage() {
             <ModalBody>
               <div className="space-y-4">
                 <Input
-                  label="节点名称"
-                  placeholder="请输入节点名称"
+                  label="转发机名称"
+                  placeholder="请输入转发机名称"
                   value={form.name}
                   onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
                   isInvalid={!!errors.name}
@@ -906,7 +906,7 @@ export default function NodePage() {
                     <Alert
                       color="warning"
                       variant="flat"
-                      description={protocolDisabledReason || '等待节点上线后再设置'}
+                      description={protocolDisabledReason || '等待转发机上线后再设置'}
                       className="mb-2"
                     />
                   )}
@@ -972,14 +972,14 @@ export default function NodePage() {
                 <Alert
                         color="danger"
                         variant="flat"
-                        description="请不要在出口节点执行屏蔽协议，否则可能影响转发；屏蔽协议仅需在入口节点执行。"
+                        description="请不要在出口转发机执行屏蔽协议，否则可能影响转发；屏蔽协议仅需在入口转发机执行。"
                         className="mt-3"
                       />
                 
                 <Alert
                         color="primary"
                         variant="flat"
-                        description="服务器ip是你要添加的服务器的ip地址，不是面板的ip地址。入口ip是用于展示在转发页面，面向用户的访问地址。实在理解不到说明你没这个需求，都填节点的服务器ip就行！"
+                        description="服务器ip是你要添加的服务器的ip地址，不是面板的ip地址。入口ip是用于展示在转发页面，面向用户的访问地址。实在理解不到说明你没这个需求，都填转发机的服务器ip就行！"
                         className="mt-4"
                       />
               </div>
@@ -1018,7 +1018,7 @@ export default function NodePage() {
                   <h2 className="text-xl font-bold">确认删除</h2>
                 </ModalHeader>
                 <ModalBody>
-                  <p>确定要删除节点 <strong>"{nodeToDelete?.name}"</strong> 吗？</p>
+                  <p>确定要删除转发机 <strong>"{nodeToDelete?.name}"</strong> 吗？</p>
                   <p className="text-small text-default-500">此操作不可恢复，请谨慎操作。</p>
                 </ModalBody>
                 <ModalFooter>

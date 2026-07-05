@@ -133,7 +133,7 @@ export default function TunnelPage() {
       if (nodesRes.code === 0) {
         setNodes(nodesRes.data || []);
       } else {
-        console.warn('获取节点列表失败:', nodesRes.msg);
+        console.warn('获取转发机列表失败:', nodesRes.msg);
       }
     } catch (error) {
       console.error('加载数据失败:', error);
@@ -154,7 +154,7 @@ export default function TunnelPage() {
     }
     
     if (!form.inNodeId) {
-      newErrors.inNodeId = '请选择入口节点';
+      newErrors.inNodeId = '请选择入口转发机';
     }
     
     if (!form.tcpListenAddr.trim()) {
@@ -172,9 +172,9 @@ export default function TunnelPage() {
     // 隧道转发时的验证
     if (form.type === 2) {
       if (!form.outNodeId) {
-        newErrors.outNodeId = '请选择出口节点';
+        newErrors.outNodeId = '请选择出口转发机';
       } else if (form.inNodeId === form.outNodeId) {
-        newErrors.outNodeId = '隧道转发模式下，入口和出口不能是同一个节点';
+        newErrors.outNodeId = '隧道转发模式下，入口和出口不能是同一个转发机';
       }
       
       if (!form.protocol) {
@@ -354,11 +354,11 @@ export default function TunnelPage() {
     return `${ips[0]} 等${ips.length}个`;
   };
 
-  // 获取节点名称
+  // 获取转发机名称
   const getNodeName = (nodeId?: number): string => {
     if (!nodeId) return '-';
     const node = nodes.find(n => n.id === nodeId);
-    return node ? node.name : `节点${nodeId}`;
+    return node ? node.name : `转发机${nodeId}`;
   };
 
   // 获取状态显示
@@ -484,7 +484,7 @@ export default function TunnelPage() {
                       <div className="space-y-1.5">
                         <div className="p-2 bg-default-50 dark:bg-default-100/50 rounded border border-default-200 dark:border-default-300">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-default-600">入口节点</span>
+                            <span className="text-xs font-medium text-default-600">入口转发机</span>
                           </div>
                           <code className="text-xs font-mono text-foreground block truncate">
                             {getNodeName(tunnel.inNodeId)}
@@ -503,7 +503,7 @@ export default function TunnelPage() {
                         <div className="p-2 bg-default-50 dark:bg-default-100/50 rounded border border-default-200 dark:border-default-300">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-medium text-default-600">
-                              {tunnel.type === 1 ? '出口节点（同入口）' : '出口节点'}
+                              {tunnel.type === 1 ? '出口转发机（同入口）' : '出口转发机'}
                             </span>
                           </div>
                           <code className="text-xs font-mono text-foreground block truncate">
@@ -694,8 +694,8 @@ export default function TunnelPage() {
                     <h3 className="text-lg font-semibold">入口配置</h3>
 
                     <Select
-                      label="入口节点"
-                      placeholder="请选择入口节点"
+                      label="入口转发机"
+                      placeholder="请选择入口转发机"
                       selectedKeys={form.inNodeId ? [form.inNodeId.toString()] : []}
                       onSelectionChange={(keys) => {
                         const selectedKey = Array.from(keys)[0] as string;
@@ -801,8 +801,8 @@ export default function TunnelPage() {
                         </Select>
 
                         <Select
-                          label="出口节点"
-                          placeholder="请选择出口节点"
+                          label="出口转发机"
+                          placeholder="请选择出口转发机"
                           selectedKeys={form.outNodeId ? [form.outNodeId.toString()] : []}
                           onSelectionChange={(keys) => {
                             const selectedKey = Array.from(keys)[0] as string;
