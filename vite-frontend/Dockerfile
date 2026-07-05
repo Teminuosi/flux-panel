@@ -4,7 +4,8 @@ FROM node:20.19.0 AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+# 该项目存在 React/HeroUI peer 依赖冲突且未提交 lockfile,不加此参 npm install 会 ERESOLVE 失败
+RUN npm install --legacy-peer-deps
 
 COPY . .
 RUN npm run build
