@@ -8,9 +8,9 @@ export LC_ALL=C
 
 
 # 全局下载地址配置
-DOCKER_COMPOSEV4_URL="https://github.com/bqlpfy/flux-panel/releases/download/1.4.3/docker-compose-v4.yml"
-DOCKER_COMPOSEV6_URL="https://github.com/bqlpfy/flux-panel/releases/download/1.4.3/docker-compose-v6.yml"
-GOST_SQL_URL="https://github.com/bqlpfy/flux-panel/releases/download/1.4.3/gost.sql"
+DOCKER_COMPOSEV4_URL="https://github.com/Teminuosi/flux-panel/releases/latest/download/docker-compose-v4.yml"
+DOCKER_COMPOSEV6_URL="https://github.com/Teminuosi/flux-panel/releases/latest/download/docker-compose-v6.yml"
+GOST_SQL_URL="https://github.com/Teminuosi/flux-panel/releases/latest/download/gost.sql"
 
 COUNTRY=$(curl -s https://ipinfo.io/country)
 if [ "$COUNTRY" = "CN" ]; then
@@ -33,17 +33,27 @@ get_docker_compose_url() {
 
 # 检查 docker-compose 或 docker compose 命令
 check_docker() {
+  # 全自动一键:没装 Docker 就用官方脚本自动装
+  if ! command -v docker &> /dev/null; then
+    echo "🔧 未检测到 Docker，正在自动安装..."
+    curl -fsSL https://get.docker.com | sh
+    if command -v systemctl &> /dev/null; then
+      systemctl enable docker &> /dev/null || true
+      systemctl start docker &> /dev/null || true
+    fi
+  fi
+
   if command -v docker-compose &> /dev/null; then
     DOCKER_CMD="docker-compose"
   elif command -v docker &> /dev/null; then
     if docker compose version &> /dev/null; then
       DOCKER_CMD="docker compose"
     else
-      echo "错误：检测到 docker，但不支持 'docker compose' 命令。请安装 docker-compose 或更新 docker 版本。"
+      echo "错误：检测到 docker，但不支持 'docker compose' 命令。请更新 docker 版本。"
       exit 1
     fi
   else
-    echo "错误：未检测到 docker 或 docker-compose 命令。请先安装 Docker。"
+    echo "错误：Docker 自动安装失败，请手动安装后重试。"
     exit 1
   fi
   echo "检测到 Docker 命令：$DOCKER_CMD"
@@ -171,15 +181,12 @@ delete_self() {
 
 # 获取用户输入的配置参数
 get_config_params() {
-  echo "🔧 请输入配置参数："
+  echo "🔧 自动配置参数（全自动安装，无需交互）..."
 
-
-
-  read -p "前端端口（默认 6366）: " FRONTEND_PORT
+  # 端口可用环境变量覆盖(FRONTEND_PORT=xxx BACKEND_PORT=xxx),否则用默认值,不再交互
   FRONTEND_PORT=${FRONTEND_PORT:-6366}
-
-  read -p "后端端口（默认 6365）: " BACKEND_PORT
   BACKEND_PORT=${BACKEND_PORT:-6365}
+  echo "   前端端口：$FRONTEND_PORT   后端端口：$BACKEND_PORT"
 
   DB_NAME=$(generate_random)
   DB_USER=$(generate_random)
@@ -227,8 +234,8 @@ EOF
 
   echo "🎉 部署完成"
   echo "🌐 访问地址: http://服务器IP:$FRONTEND_PORT"
-  echo "📖 部署完成后请阅读下使用文档，求求了啊，不要上去就是一顿操作"
-  echo "📚 文档地址: https://tes.cc/guide.html"
+  echo "🔑 默认账号: admin_user   默认密码: admin_user （首次登录后请立即修改）"
+  echo "📚 项目地址: https://github.com/Teminuosi/flux-panel"
   echo "💡 默认管理员账号: admin_user / admin_user"
   echo "⚠️  登录后请立即修改默认密码！"
 

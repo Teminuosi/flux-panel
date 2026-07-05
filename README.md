@@ -25,24 +25,16 @@
 ---
 ### Docker Compose部署
 #### 快速部署
-面板端(稳定版)：
-```bash
-curl -L https://raw.githubusercontent.com/bqlpfy/flux-panel/refs/heads/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
-```
-节点端(稳定版)：
-```bash
-curl -L https://raw.githubusercontent.com/bqlpfy/flux-panel/refs/heads/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+只有两条命令。先在一台机器装**面板端**,再到每台转发机装**节点端**。
 
+**面板端**(中央管理面板,一台即可,全自动;需要 Docker,脚本会自动装):
+```bash
+curl -L https://raw.githubusercontent.com/Teminuosi/flux-panel/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
 
-面板端(开发版)：
+**节点端**(转发节点,每台转发机都装;裸二进制,不需要 Docker):
 ```bash
-curl -L https://raw.githubusercontent.com/bqlpfy/flux-panel/refs/heads/beta/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
-```
-节点端(开发版)：
-```bash
-curl -L https://raw.githubusercontent.com/bqlpfy/flux-panel/refs/heads/beta/install.sh -o install.sh && chmod +x install.sh && ./install.sh
-
+curl -L https://raw.githubusercontent.com/Teminuosi/flux-panel/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
 ```
 
 #### 默认管理员账号
@@ -86,5 +78,5 @@ curl -L https://raw.githubusercontent.com/bqlpfy/flux-panel/refs/heads/beta/inst
 | TRC20      | `TYh2L3xxXpuJhAcBWnt3yiiADiCSJLgUm7`                                  |
 | Aptos      | `0xf2f9fb14749457748506a8281628d556e8540d1eb586d202cd8b02b99d369ef8`  |
 
-[![Star History Chart](https://api.star-history.com/svg?repos=bqlpfy/flux-panel&type=Date)](https://www.star-history.com/#bqlpfy/flux-panel&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Teminuosi/flux-panel&type=Date)](https://www.star-history.com/#Teminuosi/flux-panel&Date)
 
