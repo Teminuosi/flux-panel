@@ -234,10 +234,9 @@ EOF
 
   echo "🎉 部署完成"
   echo "🌐 访问地址: http://服务器IP:$FRONTEND_PORT"
-  echo "🔑 默认账号: admin_user   默认密码: admin_user （首次登录后请立即修改）"
-  echo "📚 项目地址: https://github.com/Teminuosi/flux-panel"
-  echo "💡 默认管理员账号: admin_user / admin_user"
+  echo "🔑 默认账号: admin_user   默认密码: admin_user"
   echo "⚠️  登录后请立即修改默认密码！"
+  echo "📚 项目地址: https://github.com/Teminuosi/flux-panel"
 
 
 }
@@ -1079,10 +1078,24 @@ uninstall_panel() {
   echo "✅ 卸载完成"
 }
 
-# 主逻辑
+# 主逻辑：默认一令到底直接安装；传参数才做别的
+#   ./panel_install.sh            直接安装（默认，无需选择）
+#   ./panel_install.sh update     更新
+#   ./panel_install.sh uninstall  卸载
+#   ./panel_install.sh menu       交互式菜单
 main() {
+  case "${1:-install}" in
+    install)   install_panel; delete_self ;;
+    update)    update_panel; delete_self ;;
+    uninstall) uninstall_panel; delete_self ;;
+    export)    export_migration_sql; delete_self ;;
+    menu)      menu_loop ;;
+    *)         install_panel; delete_self ;;
+  esac
+}
 
-  # 显示交互式菜单
+# 交互式菜单（可选，运行 ./panel_install.sh menu 才进入）
+menu_loop() {
   while true; do
     show_menu
     read -p "请输入选项 (1-5): " choice
@@ -1122,4 +1135,4 @@ main() {
 }
 
 # 执行主函数
-main
+main "$@"
