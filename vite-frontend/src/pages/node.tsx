@@ -851,7 +851,12 @@ export default function NodePage() {
                   label="服务器IP"
                   placeholder="请输入服务器IP地址，如: 192.168.1.100 或 example.com"
                   value={form.serverIp}
-                  onChange={(e) => setForm(prev => ({ ...prev, serverIp: e.target.value }))}
+                  onChange={(e) => setForm(prev => ({
+                    ...prev,
+                    serverIp: e.target.value,
+                    // 入口IP 默认自动跟随服务器IP;用户手动改过入口IP后就不再覆盖
+                    ipString: (!prev.ipString || prev.ipString === prev.serverIp) ? e.target.value : prev.ipString,
+                  }))}
                   isInvalid={!!errors.serverIp}
                   errorMessage={errors.serverIp}
                   variant="bordered"
@@ -867,7 +872,7 @@ export default function NodePage() {
                   variant="bordered"
                   minRows={3}
                   maxRows={5}
-                  description="支持多个IP，每行一个地址"
+                  description="默认自动和服务器IP一致，一般不用管；套CDN/域名/多IP时才改（支持多个，每行一个）"
                 />
 
                 <div className="grid grid-cols-2 gap-4">
