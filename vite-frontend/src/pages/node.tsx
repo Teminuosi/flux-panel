@@ -468,6 +468,30 @@ export default function NodePage() {
     }
   };
 
+  // 兼容 http(非安全上下文)的复制:clipboard API 不可用时回退到 execCommand
+  const copyText = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch { /* 落到下面的回退方案 */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
   // 复制安装命令
   const handleCopyInstallCommand = async (node: Node) => {
     setNodeList(prev => prev.map(n => 
@@ -477,11 +501,10 @@ export default function NodePage() {
     try {
       const res = await getNodeInstallCommand(node.id);
       if (res.code === 0 && res.data) {
-        try {
-          await navigator.clipboard.writeText(res.data);
+        if (await copyText(res.data)) {
           toast.success('安装命令已复制到剪贴板');
-        } catch (copyError) {
-          // 复制失败，显示安装命令模态框
+        } else {
+          // 复制失败，显示安装命令模态框让用户手动选择
           setInstallCommand(res.data);
           setCurrentNodeName(node.name);
           setInstallCommandModal(true);
@@ -500,11 +523,10 @@ export default function NodePage() {
 
   // 手动复制安装命令
   const handleManualCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(installCommand);
+    if (await copyText(installCommand)) {
       toast.success('安装命令已复制到剪贴板');
       setInstallCommandModal(false);
-    } catch (error) {
+    } else {
       toast.error('复制失败，请手动选择文本复制');
     }
   };
