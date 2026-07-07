@@ -232,8 +232,26 @@ EOF
   echo "🚀 启动 docker 服务..."
   $DOCKER_CMD up -d
 
+  # 自动写入「面板后端地址」(转发机对接要用),省得登录后再手动到网站配置里填
+  echo "🌐 检测公网IP并自动配置面板后端地址..."
+  PUBLIC_IP=$(curl -s --max-time 8 https://api.ipify.org || curl -s --max-time 8 https://ipinfo.io/ip || echo "")
+  if [ -n "$PUBLIC_IP" ]; then
+    for i in $(seq 1 30); do
+      if docker exec gost-mysql mysqladmin ping -h localhost --silent >/dev/null 2>&1; then
+        if docker exec gost-mysql mysql -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" \
+             -e "INSERT IGNORE INTO vite_config (name, value, time) VALUES ('ip', '${PUBLIC_IP}:${BACKEND_PORT}', $(date +%s)000);" >/dev/null 2>&1; then
+          echo "✅ 已自动设置面板后端地址: ${PUBLIC_IP}:${BACKEND_PORT}"
+        fi
+        break
+      fi
+      sleep 2
+    done
+  else
+    echo "⚠️ 未能自动获取公网IP，请登录后到「网站配置」手动填面板后端地址(格式 IP:${BACKEND_PORT})"
+  fi
+
   echo "🎉 部署完成"
-  echo "🌐 访问地址: http://服务器IP:$FRONTEND_PORT"
+  echo "🌐 访问地址: http://${PUBLIC_IP:-服务器IP}:$FRONTEND_PORT"
   echo "🔑 默认账号: admin_user   默认密码: admin_user"
   echo "⚠️  登录后请立即修改默认密码！"
   echo "📚 项目地址: https://github.com/Teminuosi/flux-panel"
