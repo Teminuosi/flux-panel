@@ -32,10 +32,20 @@
 curl -L https://raw.githubusercontent.com/Teminuosi/flux-panel/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
 
-**节点端**(转发节点,每台转发机都装;裸二进制,不需要 Docker):
+**节点端**(转发机,每台要做转发的机器都装;裸二进制,不需要 Docker):
+
+装好面板后,**在面板里生成节点端命令**,不用手敲——
+> 登录面板 → 左侧「转发机监控」→「新增」填该机器的 IP → 保存 → 点该机器的「安装」→ **复制弹出的命令**,到那台机器上执行即可。
+
+弹出的命令已自动带上「面板地址 + 该机器专属密钥」,全自动、无需手输(密钥是新增转发机时才生成的,只有面板知道,所以节点端必须从面板生成)。
+
+<details><summary>手动方式(不推荐)</summary>
+
+也可直接在机器上跑下面裸命令,它会 **交互式询问** 面板地址和密钥(密钥同样得先在面板「转发机监控」新增该转发机才有):
 ```bash
 curl -L https://raw.githubusercontent.com/Teminuosi/flux-panel/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
 ```
+</details>
 
 #### 默认管理员账号
 
