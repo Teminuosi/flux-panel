@@ -7,6 +7,11 @@ export LC_ALL=C
 
 
 
+# IPv6:默认关闭。自动改 Docker daemon.json + 内部 IPv6 网络在部分机器上会导致 mysql 启动失败(容器 unhealthy),
+# 而面板根本不需要 Docker 内部 IPv6(容器间走 IPv4 即可;公网 IPv6 访问靠端口映射,与内部网络无关)。
+# 确实需要 Docker 内部 IPv6 的,安装时加 FLUX_IPV6=1 开启。
+FLUX_IPV6="${FLUX_IPV6:-0}"
+
 # 全局下载地址配置
 DOCKER_COMPOSEV4_URL="https://github.com/Teminuosi/flux-panel/releases/latest/download/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://github.com/Teminuosi/flux-panel/releases/latest/download/docker-compose-v6.yml"
@@ -24,7 +29,8 @@ fi
 
 # 根据IPv6支持情况选择docker-compose URL
 get_docker_compose_url() {
-  if check_ipv6_support > /dev/null 2>&1; then
+  # 默认 IPv4(最稳);仅在 FLUX_IPV6=1 时用 IPv6 版 compose
+  if [ "$FLUX_IPV6" = "1" ]; then
     echo "$DOCKER_COMPOSEV6_URL"
   else
     echo "$DOCKER_COMPOSEV4_URL"
@@ -214,9 +220,9 @@ install_panel() {
   fi
   echo "✅ 文件准备完成"
 
-  # 自动检测并配置 IPv6 支持
-  if check_ipv6_support; then
-    echo "🚀 系统支持 IPv6，自动启用 IPv6 配置..."
+  # IPv6 默认关闭(避免改 Docker daemon 导致 mysql 启动失败);需要时用 FLUX_IPV6=1 开启
+  if [ "$FLUX_IPV6" = "1" ]; then
+    echo "🚀 FLUX_IPV6=1，启用 Docker IPv6 配置..."
     configure_docker_ipv6
   fi
 
@@ -270,9 +276,9 @@ update_panel() {
   curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
   echo "✅ 下载完成"
 
-  # 自动检测并配置 IPv6 支持
-  if check_ipv6_support; then
-    echo "🚀 系统支持 IPv6，自动启用 IPv6 配置..."
+  # IPv6 默认关闭(避免改 Docker daemon 导致 mysql 启动失败);需要时用 FLUX_IPV6=1 开启
+  if [ "$FLUX_IPV6" = "1" ]; then
+    echo "🚀 FLUX_IPV6=1，启用 Docker IPv6 配置..."
     configure_docker_ipv6
   fi
 
