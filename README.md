@@ -54,6 +54,30 @@ curl -L https://raw.githubusercontent.com/Teminuosi/flux-panel/main/install.sh -
 
 > ⚠️ 首次登录后请立即修改默认密码！
 
+#### 面板管理(flux 命令)
+
+装好面板后,服务器上会生成一个 `flux` 管理命令(类似 x-ui),随时输入即可打开管理菜单:
+
+```bash
+flux
+```
+
+菜单里可以:更新 / 卸载 / **彻底清理(purge)** / 查看运行状态 / 查看访问信息(地址、账号)。
+
+#### 卸载 / 彻底清理
+
+在 `flux` 菜单里选「卸载」或「彻底清理」即可。也可以直接一条命令**彻底铲平**——删除所有容器、镜像、数据卷、网络、配置和管理命令,**不依赖任何文件,装崩了也能清干净**:
+
+```bash
+flux purge
+```
+
+如果 `flux` 命令不存在(比如面板当初没装成功),用这条一次性脚本铲平:
+
+```bash
+curl -L https://raw.githubusercontent.com/Teminuosi/flux-panel/main/panel_install.sh -o /tmp/flux.sh && bash /tmp/flux.sh purge
+```
+
 
 ## 免责声明
 
@@ -80,13 +104,6 @@ curl -L https://raw.githubusercontent.com/Teminuosi/flux-panel/main/install.sh -
 请务必在合法、合规、安全的前提下使用本项目。  
 
 ---
-## ⭐ 喝杯咖啡！（USDT）
-
-| 网络       | 地址                                                                 |
-|------------|----------------------------------------------------------------------|
-| BNB(BEP20) | `0x755492c03728851bbf855daa28a1e089f9aca4d1`                          |
-| TRC20      | `TYh2L3xxXpuJhAcBWnt3yiiADiCSJLgUm7`                                  |
-| Aptos      | `0xf2f9fb14749457748506a8281628d556e8540d1eb586d202cd8b02b99d369ef8`  |
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Teminuosi/flux-panel&type=Date)](https://www.star-history.com/#Teminuosi/flux-panel&Date)
 

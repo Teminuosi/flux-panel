@@ -16,13 +16,16 @@ FLUX_IPV6="${FLUX_IPV6:-0}"
 DOCKER_COMPOSEV4_URL="https://github.com/Teminuosi/flux-panel/releases/latest/download/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://github.com/Teminuosi/flux-panel/releases/latest/download/docker-compose-v6.yml"
 GOST_SQL_URL="https://github.com/Teminuosi/flux-panel/releases/latest/download/gost.sql"
+# 管理脚本自身的 raw 地址(curl|bash 场景下 flux 命令的兜底下载源)
+PANEL_INSTALL_RAW_URL="https://raw.githubusercontent.com/Teminuosi/flux-panel/main/panel_install.sh"
 
-COUNTRY=$(curl -s https://ipinfo.io/country)
+COUNTRY=$(curl -s --max-time 5 https://ipinfo.io/country || true)
 if [ "$COUNTRY" = "CN" ]; then
     # 拼接 URL
     DOCKER_COMPOSEV4_URL="https://ghfast.top/${DOCKER_COMPOSEV4_URL}"
     DOCKER_COMPOSEV6_URL="https://ghfast.top/${DOCKER_COMPOSEV6_URL}"
     GOST_SQL_URL="https://ghfast.top/${GOST_SQL_URL}"
+    PANEL_INSTALL_RAW_URL="https://ghfast.top/${PANEL_INSTALL_RAW_URL}"
 fi
 
 
@@ -159,14 +162,16 @@ configure_docker_ipv6() {
 # 显示菜单
 show_menu() {
   echo "==============================================="
-  echo "          面板管理脚本"
+  echo "          Flux 面板管理菜单"
   echo "==============================================="
-  echo "请选择操作："
-  echo "1. 安装面板"
-  echo "2. 更新面板"
-  echo "3. 卸载面板"
-  echo "4. 导出备份"
-  echo "5. 退出"
+  echo "  1. 安装面板"
+  echo "  2. 更新面板"
+  echo "  3. 卸载面板"
+  echo "  4. 彻底清理(卸载并清空容器/镜像/卷/命令)"
+  echo "  5. 查看运行状态"
+  echo "  6. 查看访问信息(地址/账号)"
+  echo "  7. 导出数据库备份"
+  echo "  0. 退出"
   echo "==============================================="
 }
 
@@ -174,13 +179,85 @@ generate_random() {
   LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c16
 }
 
-# 删除脚本自身
+# 删除脚本自身(仅删一次性下载的安装脚本;常驻的 flux 管理脚本不自删)
 delete_self() {
-  echo ""
-  echo "🗑️ 操作已完成，正在清理脚本文件..."
   SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
+  # 常驻管理命令 flux 走的就是 /usr/local/bin 下这两个,保留不删,否则 flux 会失效
+  case "$SCRIPT_PATH" in
+    /usr/local/bin/flux-panel.sh|/usr/local/bin/flux) return 0 ;;
+  esac
+  echo ""
+  echo "🗑️ 操作已完成，正在清理临时安装脚本..."
   sleep 1
-  rm -f "$SCRIPT_PATH" && echo "✅ 脚本文件已删除" || echo "❌ 删除脚本文件失败"
+  rm -f "$SCRIPT_PATH" && echo "✅ 临时脚本已删除" || echo "❌ 删除临时脚本失败"
+}
+
+# 安装常驻管理命令 flux(类似 x-ui:装完后随时输 flux 打开管理菜单)
+install_flux_command() {
+  echo "🔗 安装 flux 管理命令..."
+  local self panel_dir
+  panel_dir="$(pwd)"
+  self="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
+  # 把当前脚本持久化为管理脚本;拿不到自身(curl|bash)则现下载一份
+  if [ -f "$self" ]; then
+    cp -f "$self" /usr/local/bin/flux-panel.sh 2>/dev/null || true
+  fi
+  if [ ! -f /usr/local/bin/flux-panel.sh ]; then
+    curl -L "$PANEL_INSTALL_RAW_URL" -o /usr/local/bin/flux-panel.sh 2>/dev/null || true
+  fi
+  chmod +x /usr/local/bin/flux-panel.sh 2>/dev/null || true
+  # flux 启动器:cd 回面板目录再进管理菜单(compose 操作需要工作目录)
+  cat > /usr/local/bin/flux <<EOF
+#!/bin/bash
+# Flux 面板管理命令(类似 x-ui)。直接输 flux 打开管理菜单。
+FLUX_DIR="$panel_dir"
+[ -d "\$FLUX_DIR" ] && cd "\$FLUX_DIR"
+exec bash /usr/local/bin/flux-panel.sh "\${1:-menu}"
+EOF
+  chmod +x /usr/local/bin/flux 2>/dev/null || true
+  echo "✅ 管理命令已就绪:以后输入  flux  即可打开管理菜单(更新/卸载/彻底清理/查看状态)"
+}
+
+# 查看运行状态
+show_status() {
+  echo "📊 Flux 面板容器状态:"
+  docker ps -a --filter "name=gost-mysql" --filter "name=springboot-backend" --filter "name=vite-frontend" \
+    --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || docker ps -a
+}
+
+# 查看访问信息(地址 / 默认账号)
+show_access_info() {
+  local fport ip
+  fport="6366"
+  [ -f ".env" ] && fport="$(grep '^FRONTEND_PORT=' .env | cut -d'=' -f2)"
+  [ -z "$fport" ] && fport="6366"
+  ip="$(curl -s --max-time 8 https://api.ipify.org || curl -s --max-time 8 https://ipinfo.io/ip || echo '你的服务器IP')"
+  echo "🌐 访问地址: http://${ip}:${fport}"
+  echo "🔑 默认账号: admin_user   默认密码: admin_user(如已修改以你的为准)"
+}
+
+# 彻底清理 / 完整卸载:容器、镜像、数据卷、网络、配置、管理命令 全部删除,不依赖任何文件
+purge_panel() {
+  echo "🧨 彻底清理 Flux 面板(删除所有容器/镜像/数据卷/网络/配置和 flux 管理命令)..."
+  if command -v docker &> /dev/null; then
+    # 有 compose 就先规范地 down 一把
+    if [ -f docker-compose.yml ]; then
+      docker compose down -v --rmi all --remove-orphans 2>/dev/null \
+        || docker-compose down -v --rmi all --remove-orphans 2>/dev/null || true
+    fi
+    # 不依赖任何文件,按名字强制删干净
+    docker rm -f gost-mysql springboot-backend vite-frontend 2>/dev/null || true
+    docker volume rm mysql_data backend_logs 2>/dev/null || true
+    docker network rm gost-network 2>/dev/null || true
+    docker rmi -f ghcr.io/teminuosi/springboot-backend:latest ghcr.io/teminuosi/vite-frontend:latest mysql:5.7 2>/dev/null || true
+    # 只清悬空镜像(不动其他应用),回收磁盘
+    docker image prune -f 2>/dev/null || true
+  fi
+  # 删配置文件
+  rm -f docker-compose.yml docker-compose-v4.yml docker-compose-v6.yml gost.sql .env temp_migration.sql 2>/dev/null || true
+  # 删管理命令自身
+  rm -f /usr/local/bin/flux /usr/local/bin/flux-panel.sh 2>/dev/null || true
+  echo "✅ 已彻底清理完成,系统恢复到未安装状态。"
 }
 
 
@@ -265,10 +342,14 @@ EOF
     echo "⚠️ 未能自动获取公网IP，请登录后到「网站配置」手动填面板后端地址(格式 IP:${BACKEND_PORT})"
   fi
 
+  # 安装常驻管理命令 flux
+  install_flux_command
+
   echo "🎉 部署完成"
   echo "🌐 访问地址: http://${PUBLIC_IP:-服务器IP}:$FRONTEND_PORT"
   echo "🔑 默认账号: admin_user   默认密码: admin_user"
   echo "⚠️  登录后请立即修改默认密码！"
+  echo "🛠️  管理面板: 输入  flux  打开管理菜单(更新 / 卸载 / 彻底清理 / 查看状态)"
   echo "📚 项目地址: https://github.com/Teminuosi/flux-panel"
 
 
@@ -1085,29 +1166,15 @@ export_migration_sql() {
 }
 
 
-# 卸载功能
+# 卸载功能(交互确认后走彻底清理,保证卸干净)
 uninstall_panel() {
   echo "🗑️ 开始卸载面板..."
-  check_docker
-
-  if [[ ! -f "docker-compose.yml" ]]; then
-    echo "⚠️ 未找到 docker-compose.yml 文件，正在下载以完成卸载..."
-    DOCKER_COMPOSE_URL=$(get_docker_compose_url)
-    echo "📡 选择配置文件：$(basename "$DOCKER_COMPOSE_URL")"
-    curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
-    echo "✅ docker-compose.yml 下载完成"
-  fi
-
-  read -p "确认卸载面板吗？此操作将停止并删除所有容器和数据 (y/N): " confirm
+  read -p "确认卸载吗？将停止并删除所有容器、镜像、数据卷和配置 (y/N): " confirm
   if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
     echo "❌ 取消卸载"
     return 0
   fi
-
-  echo "🛑 停止并删除容器、镜像、卷..."
-  $DOCKER_CMD down --rmi all --volumes --remove-orphans
-  echo "🧹 删除配置文件..."
-  rm -f docker-compose.yml gost.sql .env
+  purge_panel
   echo "✅ 卸载完成"
 }
 
@@ -1121,49 +1188,33 @@ main() {
     install)   install_panel; delete_self ;;
     update)    update_panel; delete_self ;;
     uninstall) uninstall_panel; delete_self ;;
+    purge)     purge_panel; delete_self ;;
     export)    export_migration_sql; delete_self ;;
+    status)    show_status ;;
+    info)      show_access_info ;;
     menu)      menu_loop ;;
     *)         install_panel; delete_self ;;
   esac
 }
 
-# 交互式菜单（可选，运行 ./panel_install.sh menu 才进入）
+# 交互式菜单(flux 命令默认进入这里;也可 ./panel_install.sh menu)
 menu_loop() {
   while true; do
     show_menu
-    read -p "请输入选项 (1-5): " choice
+    read -p "请输入选项: " choice
 
     case $choice in
-      1)
-        install_panel
-        delete_self
-        exit 0
-        ;;
-      2)
-        update_panel
-        delete_self
-        exit 0
-        ;;
-      3)
-        uninstall_panel
-        delete_self
-        exit 0
-        ;;
-      4)
-        export_migration_sql
-        delete_self
-        exit 0
-        ;;
-      5)
-        echo "👋 退出脚本"
-        delete_self
-        exit 0
-        ;;
-      *)
-        echo "❌ 无效选项，请输入 1-5"
-        echo ""
-        ;;
+      1) install_panel; delete_self; break ;;
+      2) update_panel; break ;;
+      3) uninstall_panel; break ;;
+      4) purge_panel; break ;;
+      5) show_status ;;
+      6) show_access_info ;;
+      7) export_migration_sql ;;
+      0) echo "👋 退出"; break ;;
+      *) echo "❌ 无效选项，请重新输入" ;;
     esac
+    echo ""
   done
 }
 
