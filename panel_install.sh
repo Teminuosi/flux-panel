@@ -235,6 +235,15 @@ FRONTEND_PORT=$FRONTEND_PORT
 BACKEND_PORT=$BACKEND_PORT
 EOF
 
+  # 清理上一次失败/中断留下的旧容器与数据卷。
+  # 关键坑:MySQL 初始化中断过一次后,mysql_data 卷里会残留半拉子文件,
+  # 再启动时报 "--initialize specified but the data directory has files in it. Aborting.",
+  # 容器一直 unhealthy。全新安装本就该是干净空卷,这里强制清一遍,保证一键装到底。
+  echo "🧹 清理可能残留的旧容器与数据卷（确保全新安装干净）..."
+  $DOCKER_CMD down -v --remove-orphans 2>/dev/null || true
+  docker rm -f gost-mysql springboot-backend vite-frontend 2>/dev/null || true
+  docker volume rm mysql_data backend_logs 2>/dev/null || true
+
   echo "🚀 启动 docker 服务..."
   $DOCKER_CMD up -d
 
