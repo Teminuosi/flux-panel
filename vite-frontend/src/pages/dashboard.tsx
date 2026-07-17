@@ -3,6 +3,7 @@ import { Button } from "@heroui/button";
 import { Modal, ModalContent, ModalHeader, ModalBody } from "@heroui/modal";
 import { useState, useEffect } from "react";
 import toast from 'react-hot-toast';
+import { copyTextToClipboard } from "@/utils/clipboard";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 
@@ -533,11 +534,10 @@ export default function DashboardPage() {
   };
 
   const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyTextToClipboard(text)) {
       toast.success(`已复制`);
-    } catch (error) {
-      toast.error('复制失败');
+    } else {
+      toast.error('复制失败,请手动选择文本复制');
     }
   };
 

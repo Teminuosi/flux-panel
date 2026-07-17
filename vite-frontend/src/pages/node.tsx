@@ -10,6 +10,7 @@ import { Spinner } from "@heroui/spinner";
 import { Alert } from "@heroui/alert";
 import { Progress } from "@heroui/progress";
 import toast from 'react-hot-toast';
+import { copyTextToClipboard } from "@/utils/clipboard";
 import axios from 'axios';
 
 
@@ -468,29 +469,8 @@ export default function NodePage() {
     }
   };
 
-  // 兼容 http(非安全上下文)的复制:clipboard API 不可用时回退到 execCommand
-  const copyText = async (text: string): Promise<boolean> => {
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch { /* 落到下面的回退方案 */ }
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      return ok;
-    } catch {
-      return false;
-    }
-  };
+  // 兼容 http(非安全上下文)的复制:见 @/utils/clipboard
+  const copyText = (text: string): Promise<boolean> => copyTextToClipboard(text);
 
   // 复制安装命令
   const handleCopyInstallCommand = async (node: Node) => {

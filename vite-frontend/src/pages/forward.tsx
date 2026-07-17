@@ -11,6 +11,7 @@ import { Switch } from "@heroui/switch";
 import { Alert } from "@heroui/alert";
 import { Accordion, AccordionItem } from "@heroui/accordion";
 import toast from 'react-hot-toast';
+import { copyTextToClipboard } from "@/utils/clipboard";
 import {
   DndContext,
   closestCenter,
@@ -795,13 +796,12 @@ export default function ForwardPage() {
     setAddressModalOpen(true);
   };
 
-  // 复制到剪贴板
+  // 复制到剪贴板(兼容 http 非安全上下文)
   const copyToClipboard = async (text: string, label: string = '内容') => {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyTextToClipboard(text)) {
       toast.success(`已复制${label}`);
-    } catch (error) {
-      toast.error('复制失败');
+    } else {
+      toast.error('复制失败,请手动选择文本复制');
     }
   };
 
