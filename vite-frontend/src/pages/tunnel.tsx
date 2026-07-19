@@ -847,7 +847,7 @@ export default function TunnelPage() {
                         color="primary"
                         variant="flat"
                         title="TCP,UDP监听地址"
-                        description="V6或者双栈填写[::],V4填写0.0.0.0。不懂的就去看文档网站内的说明"
+                        description="保持默认 [::] 就行——它是「监听本机所有网卡」的意思,不是要你填机器IP(机器已经在上面「入口转发机」里选好了)。纯 IPv4 环境可改 0.0.0.0。不懂就别动。"
                         className="mt-4"
                       />
                       <Alert

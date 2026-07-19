@@ -47,6 +47,17 @@ curl -L https://raw.githubusercontent.com/Teminuosi/flux-panel/main/install.sh -
 ```
 </details>
 
+#### 国内机器安装(GitHub 连不上时)
+
+国内机器直连 GitHub 会超时(卡在下载那一步)。用 **ghfast.top 镜像 + `-c` 参数**(`-c` 强制内部下载 gost 也走国内镜像,不靠自动检测),把面板给你的「面板地址」「密钥」填进去:
+
+```bash
+curl -L https://ghfast.top/https://raw.githubusercontent.com/Teminuosi/flux-panel/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh -c -a 面板地址:端口 -s 你的密钥
+```
+
+- 面板地址、密钥从面板「转发机监控 → 新增该机器 → 点安装」弹出的命令里拿;
+- 若 `ghfast.top` 某天失效,换个镜像重试:把命令里的 `ghfast.top` 整体替换,并在前面加 `GH_MIRROR=https://新镜像/`(让内部下 gost 也走它)。常见备选:`gh-proxy.com`、`ghproxy.net`、`mirror.ghproxy.com`。
+
 #### 默认管理员账号
 
 - **账号**: admin_user

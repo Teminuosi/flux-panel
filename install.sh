@@ -22,14 +22,9 @@ build_download_url() {
     echo "https://github.com/Teminuosi/flux-panel/releases/latest/download/gost-${ARCH}"
 }
 
-# 下载地址
-DOWNLOAD_URL=$(build_download_url)
 INSTALL_DIR="/etc/gost"
-COUNTRY=$(curl -s https://ipinfo.io/country)
-if [ "$COUNTRY" = "CN" ]; then
-    # 拼接 URL
-    DOWNLOAD_URL="https://ghfast.top/${DOWNLOAD_URL}"
-fi
+FORCE_CN=0                                       # -c 强制走国内 GitHub 镜像(国内机器 ipinfo 常超时/失败)
+GH_MIRROR="${GH_MIRROR:-https://ghfast.top/}"    # 国内 GitHub 加速镜像,可用环境变量覆盖
 
 
 
@@ -145,13 +140,26 @@ get_config_params() {
 }
 
 # 解析命令行参数
-while getopts "a:s:" opt; do
+while getopts "a:s:c" opt; do
   case $opt in
     a) SERVER_ADDR="$OPTARG" ;;
     s) SECRET="$OPTARG" ;;
+    c) FORCE_CN=1 ;;
     *) echo "❌ 无效参数"; exit 1 ;;
   esac
 done
+
+# 计算 gost 下载地址(国内或 -c 时走镜像;ipinfo 检测加超时,避免无网时卡死)
+DOWNLOAD_URL=$(build_download_url)
+if [ "$FORCE_CN" = "1" ]; then
+  COUNTRY="CN"
+else
+  COUNTRY=$(curl -s --max-time 5 https://ipinfo.io/country 2>/dev/null || echo "")
+fi
+if [ "$COUNTRY" = "CN" ]; then
+  DOWNLOAD_URL="${GH_MIRROR}${DOWNLOAD_URL}"
+  echo "🌏 使用国内镜像: ${GH_MIRROR}"
+fi
 
 # 安装功能
 install_gost() {
