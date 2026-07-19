@@ -762,8 +762,8 @@ export default function TunnelPage() {
                     {/* 隧道转发时显示出口网卡配置 */}
                     {form.type === 2 && (
                       <Input
-                        label="出口网卡名或IP"
-                        placeholder="请输入出口网卡名或IP"
+                        label="出口网卡名或IP（一般留空）"
+                        placeholder="留空即可（多IP本机才填，不是目标地址）"
                         value={form.interfaceName}
                         onChange={(e) => setForm(prev => ({ ...prev, interfaceName: e.target.value }))}
                         isInvalid={!!errors.interfaceName}
@@ -853,8 +853,8 @@ export default function TunnelPage() {
                       <Alert
                         color="primary"
                         variant="flat"
-                        title="出口网卡名或IP"
-                        description="用于多IP服务器指定使用那个IP和出口服务器通讯，不懂的默认为空就行"
+                        title="出口网卡名或IP（一般留空）"
+                        description="仅本机有多个IP、要指定用哪个本地IP去连出口机时才填，且填的是【本机】的本地IP/网卡名，不是目标地址！填错（比如填成香港或落地IP）会连不上，不懂就留空。"
                         className="mt-4"
                       />
                   </div>
