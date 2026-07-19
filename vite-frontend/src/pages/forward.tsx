@@ -1649,16 +1649,20 @@ export default function ForwardPage() {
                       maxRows={6}
                     />
                     
-                    <Input
-                      label="出口网卡名或IP"
-                      placeholder="请输入出口网卡名或IP"
-                      value={form.interfaceName}
-                      onChange={(e) => setForm(prev => ({ ...prev, interfaceName: e.target.value }))}
-                      isInvalid={!!errors.interfaceName}
-                      errorMessage={errors.interfaceName}
-                      variant="bordered"
-                      description="仅【本机】有多个IP时才填，且要填【本机】的某个本地IP或网卡名(如 eth0)。这不是目标地址！填成远程地址的IP会导致连不上，不懂就留空"
-                    />
+                    <Accordion variant="light" className="px-0" itemClasses={{ title: "text-sm text-default-500", trigger: "py-2" }}>
+                      <AccordionItem key="advanced" aria-label="高级选项" title="高级选项（多IP出口，一般留空不用管）">
+                        <Input
+                          label="出口网卡名或IP"
+                          placeholder="留空即可（不懂就别填）"
+                          value={form.interfaceName}
+                          onChange={(e) => setForm(prev => ({ ...prev, interfaceName: e.target.value }))}
+                          isInvalid={!!errors.interfaceName}
+                          errorMessage={errors.interfaceName}
+                          variant="bordered"
+                          description="仅【本机】有多个IP时才填，且要填【本机】的某个本地IP或网卡名(如 eth0)。这不是目标地址！填成远程地址的IP会导致连不上，不懂就留空"
+                        />
+                      </AccordionItem>
+                    </Accordion>
 
                     <Select
                       label="限速规则"
@@ -1678,14 +1682,41 @@ export default function ForwardPage() {
                         ))}
                     </Select>
 
-                    <Input
-                      label="到期时间"
-                      type="datetime-local"
-                      value={form.expTime ? new Date(form.expTime - new Date(form.expTime).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                      onChange={(e) => setForm(prev => ({ ...prev, expTime: e.target.value ? new Date(e.target.value).getTime() : null }))}
-                      variant="bordered"
-                      description="留空 = 永不过期;到点自动暂停(每分钟检查一次)"
-                    />
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        label="到期时间"
+                        type="datetime-local"
+                        value={form.expTime ? new Date(form.expTime - new Date(form.expTime).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                        onChange={(e) => setForm(prev => ({ ...prev, expTime: e.target.value ? new Date(e.target.value).getTime() : null }))}
+                        variant="bordered"
+                        description="留空 = 永不过期;到点自动暂停(每分钟检查一次)。可点下方按钮从今天起算"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { label: '30天', days: 30 },
+                          { label: '90天', days: 90 },
+                          { label: '半年', days: 182 },
+                          { label: '1年', days: 365 },
+                        ].map((p) => (
+                          <Button
+                            key={p.days}
+                            size="sm"
+                            variant="flat"
+                            color="primary"
+                            onPress={() => setForm(prev => ({ ...prev, expTime: Date.now() + p.days * 86400000 }))}
+                          >
+                            {p.label}
+                          </Button>
+                        ))}
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          onPress={() => setForm(prev => ({ ...prev, expTime: null }))}
+                        >
+                          永久
+                        </Button>
+                      </div>
+                    </div>
 
                     {getAddressCount(form.remoteAddr) > 1 && (
                       <Select
