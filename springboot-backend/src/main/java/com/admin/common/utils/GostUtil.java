@@ -97,8 +97,8 @@ public class GostUtil {
         forwarder.put("nodes", nodes);
         JSONObject selector = new JSONObject();
         selector.put("strategy", strategy);
-        selector.put("maxFails", 1);
-        selector.put("failTimeout", "600s");
+        selector.put("maxFails", 3);        // 单落地节点时别因一次抖动(住宅代理常见)就拉黑,容忍连续几次失败
+        selector.put("failTimeout", "10s"); // 拉黑后 10s 即重试,而非 600s——单节点被拉黑=整条转发断 10 分钟
         forwarder.put("selector", selector);
 
         data.put("forwarder", forwarder);
@@ -143,8 +143,8 @@ public class GostUtil {
         forwarder.put("nodes", nodes);
         JSONObject selector = new JSONObject();
         selector.put("strategy", strategy);
-        selector.put("maxFails", 1);
-        selector.put("failTimeout", "600s");
+        selector.put("maxFails", 3);        // 单落地节点时别因一次抖动(住宅代理常见)就拉黑,容忍连续几次失败
+        selector.put("failTimeout", "10s"); // 拉黑后 10s 即重试,而非 600s——单节点被拉黑=整条转发断 10 分钟
         forwarder.put("selector", selector);
 
         data.put("forwarder", forwarder);
@@ -395,8 +395,8 @@ public class GostUtil {
 
         JSONObject selector = new JSONObject();
         selector.put("strategy", strategy);
-        selector.put("maxFails", 1);
-        selector.put("failTimeout", "600s");
+        selector.put("maxFails", 3);        // 单落地节点时别因一次抖动(住宅代理常见)就拉黑,容忍连续几次失败
+        selector.put("failTimeout", "10s"); // 拉黑后 10s 即重试,而非 600s——单节点被拉黑=整条转发断 10 分钟
         forwarder.put("selector", selector);
         return forwarder;
     }

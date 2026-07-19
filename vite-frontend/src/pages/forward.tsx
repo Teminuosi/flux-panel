@@ -1657,7 +1657,7 @@ export default function ForwardPage() {
                       isInvalid={!!errors.interfaceName}
                       errorMessage={errors.interfaceName}
                       variant="bordered"
-                      description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
+                      description="仅【本机】有多个IP时才填，且要填【本机】的某个本地IP或网卡名(如 eth0)。这不是目标地址！填成远程地址的IP会导致连不上，不懂就留空"
                     />
 
                     <Select
