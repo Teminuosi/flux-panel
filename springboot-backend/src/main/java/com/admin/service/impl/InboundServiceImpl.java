@@ -69,8 +69,10 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
 
         // 1. 节点用 sing-box 生成 Reality 密钥对
         GostDto kp = SingboxUtil.GenerateRealityKeypair(node.getId(), null);
-        if (kp == null || kp.getCode() == null || kp.getCode() != 0 || kp.getData() == null) {
-            return R.err("生成 Reality 密钥失败:" + (kp != null && kp.getMsg() != null ? kp.getMsg() : "节点无响应/超时(sing-box 可能正在下载,稍后重试)"));
+        // 注意:send_msg 返回的 GostDto 不设 code(节点响应只有 success/message/data),
+        // 判成功要看 msg == "OK"(与 ForwardServiceImpl.isGostOperationSuccess 一致),不能看 code。
+        if (kp == null || !"OK".equals(kp.getMsg()) || kp.getData() == null) {
+            return R.err("生成 Reality 密钥失败:" + (kp != null && kp.getMsg() != null ? kp.getMsg() : "节点无响应/超时"));
         }
         JSONObject kpData = JSON.parseObject(JSON.toJSONString(kp.getData()));
         String privateKey = kpData.getString("privateKey");
@@ -233,7 +235,7 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
                     inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("inbound_id", in.getId())));
         }
         GostDto r = SingboxUtil.SetSingboxConfig(nodeId, inbounds, usersByInbound, null);
-        if (r == null || r.getCode() == null || r.getCode() != 0) {
+        if (r == null || !"OK".equals(r.getMsg())) {
             return R.err("下发 sing-box 配置失败:" + (r != null && r.getMsg() != null ? r.getMsg() : "节点无响应/超时"));
         }
         return R.ok();
