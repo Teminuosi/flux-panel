@@ -1055,6 +1055,11 @@ func getMemoryInfo() MemoryInfo {
 // StartWebSocketReporterWithConfig 使用配置字段启动WebSocket报告器
 func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls int, socks int, version string) *WebSocketReporter {
 
+	// 容错:面板后端地址应为 host:port,但用户常误填 http://host:port,
+	// 会拼成非法的 ws://http://... 导致连不上。这里剥掉 scheme 前缀。
+	addr = strings.TrimPrefix(addr, "http://")
+	addr = strings.TrimPrefix(addr, "https://")
+
 	// 构建初始 WebSocket URL
 	fullURL := "ws://" + addr + "/system-info?type=1&secret=" + secret + "&version=" + version + "&http=" + strconv.Itoa(http) + "&tls=" + strconv.Itoa(tls) + "&socks=" + strconv.Itoa(socks)
 
