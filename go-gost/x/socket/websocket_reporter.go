@@ -553,6 +553,14 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		err = w.handleSetProtocol(cmd.Data)
 		response.Type = "SetProtocolResponse"
 
+	// sing-box 协议(合体面板:协议+限速)
+	case "SetSingboxConfig":
+		err = w.handleSetSingboxConfig(cmd.Data)
+		response.Type = "SetSingboxConfigResponse"
+	case "DeleteSingbox":
+		err = w.handleDeleteSingbox(cmd.Data)
+		response.Type = "DeleteSingboxResponse"
+
 	default:
 		err = fmt.Errorf("未知命令类型: %s", cmd.Type)
 		response.Type = "UnknownCommandResponse"
