@@ -10,6 +10,7 @@ import NodePage from "@/pages/node";
 import UserPage from "@/pages/user";
 import ProfilePage from "@/pages/profile";
 import LimitPage from "@/pages/limit";
+import InboundPage from "@/pages/inbound";
 import ConfigPage from "@/pages/config";
 import { SettingsPage } from "@/pages/settings";
 
@@ -165,16 +166,24 @@ function App() {
           </ProtectedRoute>
         } 
       />
-      <Route 
-        path="/forward" 
+      <Route
+        path="/forward"
         element={
           <ProtectedRoute>
             <ForwardPage />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/tunnel" 
+      <Route
+        path="/inbound"
+        element={
+          <ProtectedRoute>
+            <InboundPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tunnel"
         element={
           <ProtectedRoute>
             <TunnelPage />

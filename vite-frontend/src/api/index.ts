@@ -72,6 +72,13 @@ export const getSpeedLimitList = () => Network.post("/speed-limit/list");
 export const updateSpeedLimit = (data: any) => Network.post("/speed-limit/update", data);
 export const deleteSpeedLimit = (id: number) => Network.post("/speed-limit/delete", { id });
 
+// 协议入站(合体面板:协议搭建 + 限速)
+export const createInbound = (data: any) => Network.post("/inbound/create", data);
+export const getInboundList = () => Network.post("/inbound/list");
+export const deleteInbound = (id: number) => Network.post("/inbound/delete", { id });
+export const assignInboundUser = (data: any) => Network.post("/inbound/assign", data);
+export const unassignInboundUser = (id: number) => Network.post("/inbound/unassign", { id });
+
 // 修改密码接口
 export const updatePassword = (data: any) => Network.post("/user/updatePassword", data);
 

@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 /**
  * <p>
  * 协议入站前端控制器(合体面板:协议 + 限速)
@@ -34,16 +36,16 @@ public class InboundController extends BaseController {
     }
 
     @RequireRole
-    @GetMapping("/list")
+    @PostMapping("/list")
     public R list() {
         return inboundService.getInbounds();
     }
 
     @LogAnnotation
     @RequireRole
-    @PostMapping("/delete/{id}")
-    public R delete(@PathVariable Long id) {
-        return inboundService.deleteInbound(id);
+    @PostMapping("/delete")
+    public R delete(@RequestBody Map<String, Object> body) {
+        return inboundService.deleteInbound(Long.valueOf(String.valueOf(body.get("id"))));
     }
 
     @LogAnnotation
@@ -55,8 +57,8 @@ public class InboundController extends BaseController {
 
     @LogAnnotation
     @RequireRole
-    @PostMapping("/unassign/{id}")
-    public R unassign(@PathVariable Long id) {
-        return inboundService.unassignUser(id);
+    @PostMapping("/unassign")
+    public R unassign(@RequestBody Map<String, Object> body) {
+        return inboundService.unassignUser(Long.valueOf(String.valueOf(body.get("id"))));
     }
 }
