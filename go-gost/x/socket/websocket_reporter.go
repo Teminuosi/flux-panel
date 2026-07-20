@@ -1071,6 +1071,16 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 	reporter.secret = secret
 	reporter.version = version
 	reporter.Start()
+
+	// 合体面板:后台预装 sing-box,避免建协议时才现下、把 send_msg 的 10 秒超时卡爆
+	go func() {
+		if err := ensureSingboxInstalled(""); err != nil {
+			fmt.Printf("⚠️ 后台预装 sing-box 失败(建协议时会重试): %v\n", err)
+		} else {
+			fmt.Println("✅ sing-box 已就绪")
+		}
+	}()
+
 	return reporter
 }
 
