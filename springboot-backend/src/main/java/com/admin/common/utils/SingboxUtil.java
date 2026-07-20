@@ -40,6 +40,39 @@ public class SingboxUtil {
         return WebSocketServer.send_msg(nodeId, new JSONObject(), "DeleteSingbox");
     }
 
+    /**
+     * 让节点用 sing-box 生成 Reality 密钥对。
+     * 返回的 GostDto.data = {"privateKey": "...", "publicKey": "..."}(节点端 handleGenerateRealityKeypair)。
+     */
+    public static GostDto GenerateRealityKeypair(Long nodeId, String mirror) {
+        JSONObject payload = new JSONObject();
+        if (mirror != null && !mirror.isEmpty()) {
+            payload.put("mirror", mirror);
+        }
+        return WebSocketServer.send_msg(nodeId, payload, "GenerateRealityKeypair");
+    }
+
+    /**
+     * 生成 VLESS-Reality 客户端分享链接。
+     * 地址填的是该用户的【gost 公网端口】(被限速/计流量/到期),不是 sing-box 本机口。
+     */
+    public static String buildVlessRealityLink(String uuid, String serverIp, Integer port,
+                                               String sni, String publicKey, String shortId, String remark) {
+        String frag;
+        try {
+            frag = java.net.URLEncoder.encode(remark == null ? "" : remark, "UTF-8");
+        } catch (Exception e) {
+            frag = "";
+        }
+        return "vless://" + uuid + "@" + serverIp + ":" + port
+                + "?encryption=none&flow=xtls-rprx-vision&security=reality"
+                + "&sni=" + (sni == null ? "" : sni)
+                + "&fp=chrome"
+                + "&pbk=" + (publicKey == null ? "" : publicKey)
+                + "&sid=" + (shortId == null ? "" : shortId)
+                + "&type=tcp#" + frag;
+    }
+
     /** 汇总一个节点的完整 sing-box 配置(log + 所有入站 + direct 出站) */
     public static JSONObject buildNodeConfig(List<Inbound> inbounds, Map<Long, List<InboundUser>> usersByInbound) {
         JSONObject log = new JSONObject();

@@ -1,0 +1,280 @@
+package com.admin.service.impl;
+
+import com.admin.common.dto.ForwardDto;
+import com.admin.common.dto.GostDto;
+import com.admin.common.dto.InboundDto;
+import com.admin.common.dto.InboundUserDto;
+import com.admin.common.dto.TunnelDto;
+import com.admin.common.lang.R;
+import com.admin.common.utils.SingboxUtil;
+import com.admin.entity.Forward;
+import com.admin.entity.Inbound;
+import com.admin.entity.InboundUser;
+import com.admin.entity.Node;
+import com.admin.entity.Tunnel;
+import com.admin.entity.User;
+import com.admin.mapper.InboundMapper;
+import com.admin.mapper.InboundUserMapper;
+import com.admin.mapper.NodeMapper;
+import com.admin.mapper.TunnelMapper;
+import com.admin.mapper.UserMapper;
+import com.admin.service.ForwardService;
+import com.admin.service.InboundService;
+import com.admin.service.TunnelService;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * 协议入站服务实现(合体面板:协议 + 限速)。
+ * 架构:客户端 → gost(公网口:限速/流量/到期) → 127.0.0.1:sing-box入站(协议) → 外网。
+ *
+ * @author QAQ
+ * @since 2026-07-19
+ */
+@Service
+public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> implements InboundService {
+
+    private static final int TUNNEL_TYPE_PORT_FORWARD = 1;
+    private static final int SINGBOX_LISTEN_BASE = 40000;
+
+    @Autowired
+    private InboundUserMapper inboundUserMapper;
+    @Autowired
+    private NodeMapper nodeMapper;
+    @Autowired
+    private TunnelMapper tunnelMapper;
+    @Autowired
+    private TunnelService tunnelService;
+    @Autowired
+    private ForwardService forwardService;
+    @Autowired
+    private UserMapper userMapper;
+
+    @Override
+    public R createInbound(InboundDto dto) {
+        Node node = nodeMapper.selectById(dto.getNodeId());
+        if (node == null) {
+            return R.err("节点不存在");
+        }
+
+        // 1. 节点用 sing-box 生成 Reality 密钥对
+        GostDto kp = SingboxUtil.GenerateRealityKeypair(node.getId(), null);
+        if (kp == null || kp.getCode() != 0 || kp.getData() == null) {
+            return R.err("生成 Reality 密钥失败:" + (kp != null ? kp.getMsg() : "节点无响应"));
+        }
+        JSONObject kpData = JSON.parseObject(JSON.toJSONString(kp.getData()));
+        String privateKey = kpData.getString("privateKey");
+        String publicKey = kpData.getString("publicKey");
+        if (privateKey == null || publicKey == null) {
+            return R.err("Reality 密钥解析失败");
+        }
+
+        // 2. 组装入站(sing-box 只听 127.0.0.1)
+        Inbound in = new Inbound();
+        in.setNodeId(node.getId());
+        in.setProtocol((dto.getProtocol() == null || dto.getProtocol().isEmpty()) ? "vless" : dto.getProtocol());
+        in.setListenPort(dto.getListenPort() != null ? dto.getListenPort() : allocateListenPort(node.getId()));
+        in.setSecurity("reality");
+        in.setSni(dto.getSni());
+        in.setDest((dto.getDest() != null && !dto.getDest().isEmpty()) ? dto.getDest() : dto.getSni());
+        in.setPublicKey(publicKey);
+        in.setPrivateKey(privateKey);
+        in.setShortId(randomShortId());
+        in.setTag("in-" + node.getId() + "-" + in.getListenPort());
+        in.setRemark(dto.getRemark());
+        in.setStatus(1);
+        in.setCreatedTime(System.currentTimeMillis());
+        in.setUpdatedTime(System.currentTimeMillis());
+        if (!this.save(in)) {
+            return R.err("入站保存失败");
+        }
+
+        // 3. 推该节点 sing-box 配置(此时可能还没用户,空 users 也能起)
+        R push = pushNodeSingbox(node.getId());
+        if (push.getCode() != 0) {
+            this.removeById(in.getId());
+            return push;
+        }
+        return R.ok(in);
+    }
+
+    @Override
+    public R getInbounds() {
+        return R.ok(this.list());
+    }
+
+    @Override
+    public R deleteInbound(Long id) {
+        Inbound in = this.getById(id);
+        if (in == null) {
+            return R.err("入站不存在");
+        }
+        List<InboundUser> users = inboundUserMapper.selectList(
+                new QueryWrapper<InboundUser>().eq("inbound_id", id));
+        for (InboundUser u : users) {
+            if (u.getGostForwardId() != null) {
+                forwardService.deleteForward(u.getGostForwardId());
+            }
+            inboundUserMapper.deleteById(u.getId());
+        }
+        this.removeById(id);
+        pushNodeSingbox(in.getNodeId());
+        return R.ok();
+    }
+
+    @Override
+    public R assignUser(InboundUserDto dto) {
+        Inbound in = this.getById(dto.getInboundId());
+        if (in == null) {
+            return R.err("入站不存在");
+        }
+        User user = userMapper.selectById(dto.getUserId());
+        if (user == null) {
+            return R.err("用户不存在");
+        }
+        Node node = nodeMapper.selectById(in.getNodeId());
+        if (node == null) {
+            return R.err("节点不存在");
+        }
+
+        // 1. 确保该节点有一条端口转发隧道(入口机=该节点)
+        Tunnel tunnel = ensurePortForwardTunnel(node.getId());
+        if (tunnel == null) {
+            return R.err("创建入站转发隧道失败");
+        }
+
+        // 2. 生成 uuid
+        String uuid = UUID.randomUUID().toString();
+
+        // 3. 建该用户的 gost 前置转发(远程=127.0.0.1:入站口,绑限速/到期,归属车友)
+        ForwardDto fdto = new ForwardDto();
+        fdto.setName("inbound-" + in.getId() + "-user-" + user.getId());
+        fdto.setTunnelId(tunnel.getId().intValue());
+        fdto.setRemoteAddr("127.0.0.1:" + in.getListenPort());
+        fdto.setStrategy("fifo");
+        fdto.setSpeedId(dto.getSpeedId());
+        fdto.setExpTime(dto.getExpTime());
+        R fr = forwardService.createForwardForUser(fdto, user.getId().intValue(), user.getUser());
+        if (fr.getCode() != 0 || fr.getData() == null) {
+            return R.err("建转发失败:" + fr.getMsg());
+        }
+        Forward forward = (Forward) fr.getData();
+
+        // 4. 流量配额写到用户(可空=不改)
+        if (dto.getFlow() != null) {
+            user.setFlow(dto.getFlow());
+            userMapper.updateById(user);
+        }
+
+        // 5. 存 inbound_user
+        InboundUser iu = new InboundUser();
+        iu.setInboundId(in.getId());
+        iu.setUserId(user.getId());
+        iu.setUuid(uuid);
+        iu.setGostForwardId(forward.getId());
+        iu.setStatus(1);
+        iu.setCreatedTime(System.currentTimeMillis());
+        inboundUserMapper.insert(iu);
+
+        // 6. 重推 sing-box 配置(users 里加上这个 uuid)
+        R push = pushNodeSingbox(node.getId());
+        if (push.getCode() != 0) {
+            return push;
+        }
+
+        // 7. 出客户端链接(地址=该转发的公网口,被限速)
+        String remark = (in.getRemark() != null && !in.getRemark().isEmpty()) ? in.getRemark() : in.getTag();
+        String link = SingboxUtil.buildVlessRealityLink(uuid, node.getServerIp(), forward.getInPort(),
+                in.getSni(), in.getPublicKey(), in.getShortId(), remark);
+
+        JSONObject result = new JSONObject();
+        result.put("inboundUserId", iu.getId());
+        result.put("uuid", uuid);
+        result.put("port", forward.getInPort());
+        result.put("link", link);
+        return R.ok(result);
+    }
+
+    @Override
+    public R unassignUser(Long inboundUserId) {
+        InboundUser iu = inboundUserMapper.selectById(inboundUserId);
+        if (iu == null) {
+            return R.err("记录不存在");
+        }
+        if (iu.getGostForwardId() != null) {
+            forwardService.deleteForward(iu.getGostForwardId());
+        }
+        inboundUserMapper.deleteById(inboundUserId);
+        Inbound in = this.getById(iu.getInboundId());
+        if (in != null) {
+            pushNodeSingbox(in.getNodeId());
+        }
+        return R.ok();
+    }
+
+    // -------- helpers --------
+
+    /** 汇总该节点所有入站 + 各入站用户,推 sing-box 配置到节点 */
+    private R pushNodeSingbox(Long nodeId) {
+        List<Inbound> inbounds = this.list(new QueryWrapper<Inbound>().eq("node_id", nodeId));
+        Map<Long, List<InboundUser>> usersByInbound = new HashMap<>();
+        for (Inbound in : inbounds) {
+            usersByInbound.put(in.getId(),
+                    inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("inbound_id", in.getId())));
+        }
+        GostDto r = SingboxUtil.SetSingboxConfig(nodeId, inbounds, usersByInbound, null);
+        if (r == null || r.getCode() != 0) {
+            return R.err("下发 sing-box 配置失败:" + (r != null ? r.getMsg() : "节点无响应"));
+        }
+        return R.ok();
+    }
+
+    /** 确保节点有一条端口转发隧道(入口机=该节点),没有则建 */
+    private Tunnel ensurePortForwardTunnel(Long nodeId) {
+        Tunnel tunnel = tunnelMapper.selectOne(new QueryWrapper<Tunnel>()
+                .eq("in_node_id", nodeId).eq("type", TUNNEL_TYPE_PORT_FORWARD).last("limit 1"));
+        if (tunnel != null) {
+            return tunnel;
+        }
+        TunnelDto tdto = new TunnelDto();
+        tdto.setName("inbound-tunnel-node" + nodeId);
+        tdto.setInNodeId(nodeId);
+        tdto.setType(TUNNEL_TYPE_PORT_FORWARD);
+        tdto.setFlow(1);
+        tdto.setTrafficRatio(BigDecimal.ONE);
+        tdto.setProtocol("tls");
+        R r = tunnelService.createTunnel(tdto);
+        if (r.getCode() != 0) {
+            return null;
+        }
+        return tunnelMapper.selectOne(new QueryWrapper<Tunnel>()
+                .eq("in_node_id", nodeId).eq("type", TUNNEL_TYPE_PORT_FORWARD).last("limit 1"));
+    }
+
+    /** 分配 sing-box 本机监听口(40000+,避开 gost 公网口段) */
+    private Integer allocateListenPort(Long nodeId) {
+        List<Inbound> inbounds = this.list(new QueryWrapper<Inbound>().eq("node_id", nodeId));
+        int max = SINGBOX_LISTEN_BASE - 1;
+        for (Inbound in : inbounds) {
+            if (in.getListenPort() != null && in.getListenPort() > max) {
+                max = in.getListenPort();
+            }
+        }
+        return max + 1;
+    }
+
+    /** 随机 8 位十六进制 shortId */
+    private String randomShortId() {
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+    }
+}

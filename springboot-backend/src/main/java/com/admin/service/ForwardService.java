@@ -82,4 +82,14 @@ public interface ForwardService extends IService<Forward> {
 
 
     void updateForwardA(Forward forward);
+
+    /**
+     * 指定用户建端口转发,并把建好的 Forward 放进 R.data 返回(合体面板 InboundService 用)。
+     * 跳过自助权限校验(管理员代建),转发归属传入用户,便于按用户汇总流量/限速/到期。
+     * @param forwardDto 转发数据(tunnelId/remoteAddr/inPort/speedId/expTime 等)
+     * @param userId     归属用户(子账号)ID
+     * @param userName   归属用户名
+     * @return R.ok(Forward) 或 R.err
+     */
+    R createForwardForUser(ForwardDto forwardDto, Integer userId, String userName);
 }

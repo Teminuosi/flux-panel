@@ -115,6 +115,57 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     }
 
     @Override
+    public R createForwardForUser(ForwardDto forwardDto, Integer userId, String userName) {
+        // 1. 校验隧道(该端口转发隧道由 InboundService 保证入口机=入站节点)
+        Tunnel tunnel = validateTunnel(forwardDto.getTunnelId());
+        if (tunnel == null) {
+            return R.err("隧道不存在");
+        }
+        if (tunnel.getStatus() != TUNNEL_STATUS_ACTIVE) {
+            return R.err("隧道已禁用，无法创建转发");
+        }
+
+        // 2. 分配端口(留空则自动排下一个可用)
+        PortAllocation portAllocation = allocatePorts(tunnel, forwardDto.getInPort());
+        if (portAllocation.isHasError()) {
+            return R.err(portAllocation.getErrorMessage());
+        }
+
+        // 3. 建 Forward,归属【指定用户】(而非当前登录管理员),便于按用户汇总流量/到期
+        Forward forward = new Forward();
+        BeanUtils.copyProperties(forwardDto, forward);
+        if (forward.getStrategy() == null || forward.getStrategy().isEmpty()) {
+            forward.setStrategy("fifo");
+        }
+        forward.setStatus(FORWARD_STATUS_ACTIVE);
+        forward.setInPort(portAllocation.getInPort());
+        forward.setOutPort(portAllocation.getOutPort());
+        forward.setUserId(userId);
+        forward.setUserName(userName);
+        forward.setCreatedTime(System.currentTimeMillis());
+        forward.setUpdatedTime(System.currentTimeMillis());
+        if (!this.save(forward)) {
+            return R.err("端口转发创建失败");
+        }
+
+        // 4. 节点信息
+        NodeInfo nodeInfo = getRequiredNodes(tunnel);
+        if (nodeInfo.isHasError()) {
+            this.removeById(forward.getId());
+            return R.err(nodeInfo.getErrorMessage());
+        }
+
+        // 5. 下发 gost 服务(限速取 forward.speedId;管理员代建不走自助权限,userTunnel 传 null)
+        R gostResult = createGostServices(forward, tunnel, resolveLimiter(forward, null), nodeInfo, null);
+        if (gostResult.getCode() != 0) {
+            this.removeById(forward.getId());
+            return gostResult;
+        }
+
+        return R.ok(forward);
+    }
+
+    @Override
     public R getAllForwards() {
         UserInfo currentUser = getCurrentUserInfo();
 
