@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -74,6 +75,51 @@ func (w *WebSocketReporter) handleDeleteSingbox(data interface{}) error {
 	singboxMu.Lock()
 	defer singboxMu.Unlock()
 	return stopSingbox()
+}
+
+// handleGenerateRealityKeypair 用 sing-box 生成 Reality 密钥对(比在后端手搓 x25519 可靠)
+// 返回 {"privateKey": "...", "publicKey": "..."},面板存起来:私钥入服务端配置、公钥进客户端链接。
+func (w *WebSocketReporter) handleGenerateRealityKeypair(data interface{}) (map[string]string, error) {
+	singboxMu.Lock()
+	defer singboxMu.Unlock()
+
+	// 请求可带 mirror,用于首次下载 sing-box 二进制
+	var req struct {
+		Mirror string `json:"mirror,omitempty"`
+	}
+	if data != nil {
+		if b, err := json.Marshal(data); err == nil {
+			_ = json.Unmarshal(b, &req)
+		}
+	}
+	if err := ensureSingboxInstalled(req.Mirror); err != nil {
+		return nil, err
+	}
+
+	out, err := exec.Command(singboxBinPath(), "generate", "reality-keypair").CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("生成 reality 密钥失败: %v, %s", err, string(out))
+	}
+	priv, pub := parseRealityKeypair(string(out))
+	if priv == "" || pub == "" {
+		return nil, fmt.Errorf("解析 reality 密钥失败: %s", string(out))
+	}
+	return map[string]string{"privateKey": priv, "publicKey": pub}, nil
+}
+
+// parseRealityKeypair 解析 `sing-box generate reality-keypair` 的输出:
+//   PrivateKey: xxxx
+//   PublicKey: yyyy
+func parseRealityKeypair(out string) (priv, pub string) {
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "PrivateKey:") {
+			priv = strings.TrimSpace(strings.TrimPrefix(line, "PrivateKey:"))
+		} else if strings.HasPrefix(line, "PublicKey:") {
+			pub = strings.TrimSpace(strings.TrimPrefix(line, "PublicKey:"))
+		}
+	}
+	return priv, pub
 }
 
 // ---- 安装 / 配置 / 服务管理 ----

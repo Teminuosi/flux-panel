@@ -560,6 +560,11 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 	case "DeleteSingbox":
 		err = w.handleDeleteSingbox(cmd.Data)
 		response.Type = "DeleteSingboxResponse"
+	case "GenerateRealityKeypair":
+		var kp map[string]string
+		kp, err = w.handleGenerateRealityKeypair(cmd.Data)
+		response.Type = "GenerateRealityKeypairResponse"
+		response.Data = kp
 
 	default:
 		err = fmt.Errorf("未知命令类型: %s", cmd.Type)
