@@ -10,6 +10,7 @@ package socket
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -80,8 +81,10 @@ func (w *WebSocketReporter) handleDeleteSingbox(data interface{}) error {
 // handleGenerateRealityKeypair 用 sing-box 生成 Reality 密钥对(比在后端手搓 x25519 可靠)
 // 返回 {"privateKey": "...", "publicKey": "..."},面板存起来:私钥入服务端配置、公钥进客户端链接。
 func (w *WebSocketReporter) handleGenerateRealityKeypair(data interface{}) (map[string]string, error) {
+	fmt.Println("🔑 [reality] 收到,等 singboxMu 锁...")
 	singboxMu.Lock()
 	defer singboxMu.Unlock()
+	fmt.Println("🔑 [reality] 已拿锁,检查 sing-box 是否就绪...")
 
 	// 请求可带 mirror,用于首次下载 sing-box 二进制
 	var req struct {
@@ -93,10 +96,15 @@ func (w *WebSocketReporter) handleGenerateRealityKeypair(data interface{}) (map[
 		}
 	}
 	if err := ensureSingboxInstalled(req.Mirror); err != nil {
+		fmt.Printf("🔑 [reality] ensureSingboxInstalled 失败: %v\n", err)
 		return nil, err
 	}
+	fmt.Println("🔑 [reality] sing-box 就绪, exec generate reality-keypair...")
 
-	out, err := exec.Command(singboxBinPath(), "generate", "reality-keypair").CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, singboxBinPath(), "generate", "reality-keypair").CombinedOutput()
+	fmt.Printf("🔑 [reality] exec 返回 err=%v out=%q\n", err, string(out))
 	if err != nil {
 		return nil, fmt.Errorf("生成 reality 密钥失败: %v, %s", err, string(out))
 	}
@@ -104,6 +112,7 @@ func (w *WebSocketReporter) handleGenerateRealityKeypair(data interface{}) (map[
 	if priv == "" || pub == "" {
 		return nil, fmt.Errorf("解析 reality 密钥失败: %s", string(out))
 	}
+	fmt.Printf("🔑 [reality] 成功,priv=%d pub=%d 字符\n", len(priv), len(pub))
 	return map[string]string{"privateKey": priv, "publicKey": pub}, nil
 }
 
