@@ -527,11 +527,28 @@ export default function ForwardPage() {
     }
   };
 
-  // 处理隧道选择变化
+  // 算出某隧道下一个可用入口端口(在端口范围内跳过同隧道已占用的);填满则返回 null,交后端分配
+  const getNextAvailableInPort = (tunnel: Tunnel): number | null => {
+    const start = tunnel.inNodePortSta ?? 1000;
+    const end = tunnel.inNodePortEnd ?? 65535;
+    const used = new Set(
+      forwards.filter(f => f.tunnelId === tunnel.id && f.inPort != null).map(f => f.inPort)
+    );
+    for (let p = start; p <= end; p++) {
+      if (!used.has(p)) return p;
+    }
+    return null;
+  };
+
+  // 处理隧道选择变化:选好隧道自动填入下一个可用入口端口(自动排号,可改;清空则由后端分配)
   const handleTunnelChange = (tunnelId: string) => {
     const tunnel = tunnels.find(t => t.id === parseInt(tunnelId));
     setSelectedTunnel(tunnel || null);
-    setForm(prev => ({ ...prev, tunnelId: parseInt(tunnelId) }));
+    setForm(prev => ({
+      ...prev,
+      tunnelId: parseInt(tunnelId),
+      inPort: tunnel ? getNextAvailableInPort(tunnel) : prev.inPort,
+    }));
   };
 
   // 提交表单
@@ -1631,7 +1648,7 @@ export default function ForwardPage() {
                       variant="bordered"
                       description={
                         selectedTunnel && selectedTunnel.inNodePortSta && selectedTunnel.inNodePortEnd
-                          ? `允许范围: ${selectedTunnel.inNodePortSta}-${selectedTunnel.inNodePortEnd}`
+                          ? `已自动填入下一个可用端口,可改;清空则由系统分配。允许范围 ${selectedTunnel.inNodePortSta}-${selectedTunnel.inNodePortEnd}`
                           : '留空将自动分配可用端口'
                       }
                     />
