@@ -8,7 +8,8 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY . .
-RUN npm run build
+# vite build 吃内存,小内存 VPS 上会 JS heap OOM;调大 Node 老生代堆上限
+RUN NODE_OPTIONS=--max-old-space-size=2048 npm run build
 
 # 生产阶段
 FROM nginx:stable-alpine AS production-stage
