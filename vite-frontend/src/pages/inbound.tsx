@@ -63,11 +63,12 @@ export default function InboundPage() {
 
   const nodeName = (id: number) => nodes.find((n) => n.id === id)?.name || id;
   const protoLabel = (p: string) =>
-    p === "shadowsocks" ? "Shadowsocks-2022" : p === "vless" ? "vless/reality" : p;
+    (({ vless: "VLESS-Reality", trojan: "Trojan-Reality", vmess: "VMess", shadowsocks: "Shadowsocks-2022" } as any)[p] || p);
+  const isReality = (p: string) => p === "vless" || p === "trojan";
 
   const handleCreate = async () => {
     if (!createForm.nodeId) return toast.error("请选择节点");
-    if (createForm.protocol === "vless" && !createForm.sni) return toast.error("VLESS-Reality 需要填 SNI");
+    if (isReality(createForm.protocol) && !createForm.sni) return toast.error("Reality 协议需要填 SNI");
     setCreateLoading(true);
     try {
       const payload: any = {
@@ -75,7 +76,7 @@ export default function InboundPage() {
         protocol: createForm.protocol,
         remark: createForm.remark,
       };
-      if (createForm.protocol === "vless") {
+      if (isReality(createForm.protocol)) {
         payload.sni = createForm.sni;
         payload.dest = createForm.dest;
       }
@@ -156,7 +157,7 @@ export default function InboundPage() {
                 </div>
                 <div className="text-xs text-default-500 truncate">
                   节点: {nodeName(ib.nodeId)} · 本机口: {ib.listenPort}
-                  {ib.protocol === "vless" ? ` · SNI: ${ib.sni}` : " · 无域名无证书"}
+                  {isReality(ib.protocol) ? ` · SNI: ${ib.sni}` : " · 无域名无证书"}
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
@@ -185,12 +186,16 @@ export default function InboundPage() {
               selectedKeys={[createForm.protocol]}
               onSelectionChange={(k) => setCreateForm({ ...createForm, protocol: String(Array.from(k)[0]) })}
               description={
-                createForm.protocol === "vless"
-                  ? "VLESS-Reality:无域名借 SNI,抗封锁强(推荐)"
-                  : "Shadowsocks-2022:无域名无证书,任何客户端都通,简单稳"
+                isReality(createForm.protocol)
+                  ? "无域名借 Reality(SNI 借壳),抗封锁强(推荐)"
+                  : createForm.protocol === "vmess"
+                  ? "VMess:TCP 无 TLS,无域名,兼容各种老客户端"
+                  : "Shadowsocks-2022:无 TLS、任何客户端都通,简单稳"
               }
             >
               <SelectItem key="vless">VLESS-Reality(无域名,推荐)</SelectItem>
+              <SelectItem key="trojan">Trojan-Reality(无域名)</SelectItem>
+              <SelectItem key="vmess">VMess(无域名,兼容老客户端)</SelectItem>
               <SelectItem key="shadowsocks">Shadowsocks-2022(简单稳)</SelectItem>
             </Select>
             <Select
@@ -203,7 +208,7 @@ export default function InboundPage() {
                 <SelectItem key={n.id}>{n.name}</SelectItem>
               ))}
             </Select>
-            {createForm.protocol === "vless" && (
+            {isReality(createForm.protocol) && (
               <>
                 <Input
                   label="SNI(借用的站点)"

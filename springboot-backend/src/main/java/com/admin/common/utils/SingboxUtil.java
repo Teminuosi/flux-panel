@@ -114,9 +114,13 @@ public class SingboxUtil {
         switch (protocol) {
             case "vless":
                 return buildVlessReality(in, users);
+            case "trojan":
+                return buildTrojanReality(in, users);
+            case "vmess":
+                return buildVmess(in, users);
             case "shadowsocks":
                 return buildShadowsocks(in);
-            // 阶段2 再补 trojan / vmess / hysteria2
+            // 待补:hysteria2 / tuic(需自签证书)
             default:
                 return null;
         }
@@ -175,12 +179,8 @@ public class SingboxUtil {
         JSONArray userArr = new JSONArray();
         if (users != null) {
             for (InboundUser u : users) {
-                if (u.getUuid() == null || u.getUuid().isEmpty()) {
-                    continue;
-                }
-                if (u.getStatus() != null && u.getStatus() == 0) {
-                    continue;
-                }
+                if (u.getUuid() == null || u.getUuid().isEmpty()) continue;
+                if (u.getStatus() != null && u.getStatus() == 0) continue;
                 JSONObject uj = new JSONObject();
                 uj.put("uuid", u.getUuid());
                 uj.put("flow", "xtls-rprx-vision");
@@ -188,8 +188,58 @@ public class SingboxUtil {
             }
         }
         inbound.put("users", userArr);
+        inbound.put("tls", buildRealityTls(in));
+        return inbound;
+    }
 
-        // Reality over TLS
+    /** Trojan + Reality 入站(无域名);和 VLESS-Reality 同一套 reality,凭证是 password */
+    private static JSONObject buildTrojanReality(Inbound in, List<InboundUser> users) {
+        JSONObject inbound = new JSONObject();
+        inbound.put("type", "trojan");
+        inbound.put("tag", in.getTag());
+        inbound.put("listen", "127.0.0.1");
+        inbound.put("listen_port", in.getListenPort());
+
+        JSONArray userArr = new JSONArray();
+        if (users != null) {
+            for (InboundUser u : users) {
+                if (u.getPassword() == null || u.getPassword().isEmpty()) continue;
+                if (u.getStatus() != null && u.getStatus() == 0) continue;
+                JSONObject uj = new JSONObject();
+                uj.put("password", u.getPassword());
+                userArr.add(uj);
+            }
+        }
+        inbound.put("users", userArr);
+        inbound.put("tls", buildRealityTls(in));
+        return inbound;
+    }
+
+    /** VMess 入站(TCP,无 TLS,无域名);凭证是 uuid */
+    private static JSONObject buildVmess(Inbound in, List<InboundUser> users) {
+        JSONObject inbound = new JSONObject();
+        inbound.put("type", "vmess");
+        inbound.put("tag", in.getTag());
+        inbound.put("listen", "127.0.0.1");
+        inbound.put("listen_port", in.getListenPort());
+
+        JSONArray userArr = new JSONArray();
+        if (users != null) {
+            for (InboundUser u : users) {
+                if (u.getUuid() == null || u.getUuid().isEmpty()) continue;
+                if (u.getStatus() != null && u.getStatus() == 0) continue;
+                JSONObject uj = new JSONObject();
+                uj.put("uuid", u.getUuid());
+                uj.put("alterId", 0);
+                userArr.add(uj);
+            }
+        }
+        inbound.put("users", userArr);
+        return inbound;
+    }
+
+    /** Reality over TLS 配置块(VLESS / Trojan 共用) */
+    private static JSONObject buildRealityTls(Inbound in) {
         JSONObject handshake = new JSONObject();
         handshake.put("server", in.getDest());
         handshake.put("server_port", 443);
@@ -207,8 +257,38 @@ public class SingboxUtil {
         tls.put("enabled", true);
         tls.put("server_name", in.getSni());
         tls.put("reality", reality);
-        inbound.put("tls", tls);
+        return tls;
+    }
 
-        return inbound;
+    /** VMess 客户端链接(vmess://base64(json)) */
+    public static String buildVmessLink(String uuid, String serverIp, Integer port, String remark) {
+        JSONObject v = new JSONObject();
+        v.put("v", "2");
+        v.put("ps", remark == null ? "" : remark);
+        v.put("add", serverIp);
+        v.put("port", String.valueOf(port));
+        v.put("id", uuid);
+        v.put("aid", "0");
+        v.put("scy", "auto");
+        v.put("net", "tcp");
+        v.put("type", "none");
+        v.put("host", "");
+        v.put("path", "");
+        v.put("tls", "");
+        v.put("sni", "");
+        String b64 = Base64.getEncoder().encodeToString(v.toJSONString().getBytes(StandardCharsets.UTF_8));
+        return "vmess://" + b64;
+    }
+
+    /** Trojan + Reality 客户端链接 */
+    public static String buildTrojanRealityLink(String password, String serverIp, Integer port,
+                                                String sni, String publicKey, String shortId, String remark) {
+        return "trojan://" + password + "@" + serverIp + ":" + port
+                + "?security=reality"
+                + "&sni=" + (sni == null ? "" : sni)
+                + "&fp=chrome"
+                + "&pbk=" + (publicKey == null ? "" : publicKey)
+                + "&sid=" + (shortId == null ? "" : shortId)
+                + "&type=tcp#" + urlEncode(remark);
     }
 }

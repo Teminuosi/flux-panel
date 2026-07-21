@@ -88,10 +88,13 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             cfg.put("method", "2022-blake3-aes-256-gcm");
             cfg.put("password", genSsKey());
             in.setConfigJson(cfg.toJSONString());
-        } else if ("vless".equals(protocol)) {
-            // VLESS-Reality(无域名):节点用 sing-box 生成 Reality 密钥对
+        } else if ("vmess".equals(protocol)) {
+            // VMess(TCP,无 TLS,无域名):无需密钥,用户 assign 时发 uuid
+            in.setSecurity("none");
+        } else if ("vless".equals(protocol) || "trojan".equals(protocol)) {
+            // VLESS / Trojan 均走 Reality(无域名):节点用 sing-box 生成 Reality 密钥对
             if (dto.getSni() == null || dto.getSni().isEmpty()) {
-                return R.err("VLESS-Reality 需要 SNI");
+                return R.err("Reality 协议需要 SNI");
             }
             GostDto kp = SingboxUtil.GenerateRealityKeypair(node.getId(), null);
             // send_msg 返回的 GostDto 不设 code,判成功看 msg=="OK"(与 ForwardServiceImpl 一致)
@@ -179,8 +182,9 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             return R.err("创建入站转发隧道失败");
         }
 
-        // 2. 生成 uuid
+        // 2. 生成凭证(uuid 给 vless/vmess,password 给 trojan)
         String uuid = UUID.randomUUID().toString();
+        String password = UUID.randomUUID().toString().replace("-", "");
 
         // 3. 建该用户的 gost 前置转发(远程=127.0.0.1:入站口,绑限速/到期,归属车友)
         ForwardDto fdto = new ForwardDto();
@@ -207,6 +211,7 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         iu.setInboundId(in.getId());
         iu.setUserId(user.getId());
         iu.setUuid(uuid);
+        iu.setPassword(password);
         iu.setGostForwardId(forward.getId());
         iu.setStatus(1);
         iu.setCreatedTime(System.currentTimeMillis());
@@ -221,13 +226,23 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         // 7. 出客户端链接(地址=该转发的公网口,被限速)
         String remark = (in.getRemark() != null && !in.getRemark().isEmpty()) ? in.getRemark() : in.getTag();
         String link;
-        if ("shadowsocks".equals(in.getProtocol())) {
-            JSONObject cfg = JSON.parseObject(in.getConfigJson() == null ? "{}" : in.getConfigJson());
-            link = SingboxUtil.buildShadowsocksLink(node.getServerIp(), forward.getInPort(),
-                    cfg.getString("method"), cfg.getString("password"), remark);
-        } else {
-            link = SingboxUtil.buildVlessRealityLink(uuid, node.getServerIp(), forward.getInPort(),
-                    in.getSni(), in.getPublicKey(), in.getShortId(), remark);
+        switch (in.getProtocol()) {
+            case "shadowsocks": {
+                JSONObject cfg = JSON.parseObject(in.getConfigJson() == null ? "{}" : in.getConfigJson());
+                link = SingboxUtil.buildShadowsocksLink(node.getServerIp(), forward.getInPort(),
+                        cfg.getString("method"), cfg.getString("password"), remark);
+                break;
+            }
+            case "vmess":
+                link = SingboxUtil.buildVmessLink(uuid, node.getServerIp(), forward.getInPort(), remark);
+                break;
+            case "trojan":
+                link = SingboxUtil.buildTrojanRealityLink(password, node.getServerIp(), forward.getInPort(),
+                        in.getSni(), in.getPublicKey(), in.getShortId(), remark);
+                break;
+            default: // vless
+                link = SingboxUtil.buildVlessRealityLink(uuid, node.getServerIp(), forward.getInPort(),
+                        in.getSni(), in.getPublicKey(), in.getShortId(), remark);
         }
 
         JSONObject result = new JSONObject();
