@@ -14,12 +14,13 @@ import { copyTextToClipboard } from "@/utils/clipboard";
 import axios from 'axios';
 
 
-import { 
-  createNode, 
-  getNodeList, 
-  updateNode, 
+import {
+  createNode,
+  getNodeList,
+  updateNode,
   deleteNode,
-  getNodeInstallCommand
+  getNodeInstallCommand,
+  updateConfig
 } from "@/api";
 
 interface Node {
@@ -479,7 +480,13 @@ export default function NodePage() {
     ));
     
     try {
-      const res = await getNodeInstallCommand(node.id);
+      let res = await getNodeInstallCommand(node.id);
+      // 面板地址(网站配置的 ip)没设时,自动用当前访问域名 + 后端默认口 6365 填好再重试,
+      // 免得用户手配或手打命令(手打易带 http:// 导致节点离线)
+      if (res.code !== 0 && String(res.msg || "").includes("ip")) {
+        await updateConfig("ip", `${window.location.hostname}:6365`);
+        res = await getNodeInstallCommand(node.id);
+      }
       if (res.code === 0 && res.data) {
         if (await copyText(res.data)) {
           toast.success('安装命令已复制到剪贴板');
@@ -798,7 +805,7 @@ export default function NodePage() {
                         isLoading={node.copyLoading}
                         className="flex-1 min-h-8"
                       >
-                        安装
+                        安装命令
                       </Button>
                       <Button
                         size="sm"
