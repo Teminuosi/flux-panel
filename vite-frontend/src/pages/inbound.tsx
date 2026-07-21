@@ -29,7 +29,7 @@ export default function InboundPage() {
   const [speedRules, setSpeedRules] = useState<any[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<any>({ nodeId: null, protocol: "shadowsocks", sni: "www.microsoft.com", dest: "", remark: "" });
+  const [createForm, setCreateForm] = useState<any>({ nodeId: null, protocol: "vless", sni: "www.apple.com", dest: "", remark: "" });
   const [createLoading, setCreateLoading] = useState(false);
 
   const [assignOpen, setAssignOpen] = useState(false);
@@ -137,7 +137,7 @@ export default function InboundPage() {
         <Button
           color="primary"
           onPress={() => {
-            setCreateForm({ nodeId: null, protocol: "shadowsocks", sni: "www.microsoft.com", dest: "", remark: "" });
+            setCreateForm({ nodeId: null, protocol: "vless", sni: "www.apple.com", dest: "", remark: "" });
             setCreateOpen(true);
           }}
         >
@@ -185,13 +185,13 @@ export default function InboundPage() {
               selectedKeys={[createForm.protocol]}
               onSelectionChange={(k) => setCreateForm({ ...createForm, protocol: String(Array.from(k)[0]) })}
               description={
-                createForm.protocol === "shadowsocks"
-                  ? "Shadowsocks-2022:无域名无证书,任何客户端都通,最稳(推荐)"
-                  : "VLESS-Reality:无域名借 SNI;注意新版客户端因后量子指纹可能连不上"
+                createForm.protocol === "vless"
+                  ? "VLESS-Reality:无域名借 SNI,抗封锁强(推荐)"
+                  : "Shadowsocks-2022:无域名无证书,任何客户端都通,简单稳"
               }
             >
-              <SelectItem key="shadowsocks">Shadowsocks-2022(推荐,最稳)</SelectItem>
-              <SelectItem key="vless">VLESS-Reality(无域名)</SelectItem>
+              <SelectItem key="vless">VLESS-Reality(无域名,推荐)</SelectItem>
+              <SelectItem key="shadowsocks">Shadowsocks-2022(简单稳)</SelectItem>
             </Select>
             <Select
               label="节点"
@@ -209,7 +209,7 @@ export default function InboundPage() {
                   label="SNI(借用的站点)"
                   value={createForm.sni}
                   onChange={(e) => setCreateForm({ ...createForm, sni: e.target.value })}
-                  description="如 www.microsoft.com;客户端也用这个 SNI,不用自有域名"
+                  description="推荐 www.apple.com / www.icloud.com;别用 www.microsoft.com(它上了后量子,reality 握不上)"
                 />
                 <Input
                   label="Reality 目标(留空=同 SNI)"
