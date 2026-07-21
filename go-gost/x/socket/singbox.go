@@ -244,6 +244,7 @@ func ensureSingboxService() error {
 	unit := fmt.Sprintf(`[Unit]
 Description=sing-box (flux hybrid)
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 WorkingDirectory=%s
