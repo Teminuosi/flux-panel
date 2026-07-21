@@ -1,0 +1,45 @@
+name: release-gost
+
+# 合体面板节点端:构建 hybrid gost(带 sing-box 支持)并发布成 release 资产,
+# 让新节点用 install.sh 一键装就自带协议能力。
+# 触发:推送 gost-v* 标签(与 docker 版本标签分开,不污染 :latest 生产镜像)。
+#   git tag gost-v1 && git push origin gost-v1
+
+on:
+  push:
+    tags:
+      - 'gost-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go-gost/go.mod
+
+      - name: Build hybrid gost (amd64 + arm64)
+        working-directory: go-gost
+        run: |
+          mkdir -p ../dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=mod -trimpath -ldflags "-s -w" -o ../dist/gost-amd64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -mod=mod -trimpath -ldflags "-s -w" -o ../dist/gost-arm64 .
+          cp ../install.sh ../dist/install.sh
+          ls -la ../dist
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/gost-amd64
+            dist/gost-arm64
+            dist/install.sh
+          body: |
+            合体面板节点端 hybrid gost(内置 sing-box 下发/协议支持)。
+            新节点安装:
+            `curl -L https://github.com/Teminuosi/flux-panel/releases/latest/download/install.sh -o install.sh && chmod +x install.sh && ./install.sh -a http://面板IP:6365 -s 节点密钥`
