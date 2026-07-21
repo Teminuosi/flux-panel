@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import {
   getInboundList,
   createInbound,
+  oneClickInbound,
   deleteInbound,
   assignInboundUser,
   getNodeList,
@@ -31,6 +32,10 @@ export default function InboundPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<any>({ nodeId: null, protocol: "vless", sni: "www.apple.com", dest: "", remark: "" });
   const [createLoading, setCreateLoading] = useState(false);
+
+  const [oneClickOpen, setOneClickOpen] = useState(false);
+  const [oneClickNodeId, setOneClickNodeId] = useState<number | null>(null);
+  const [oneClickLoading, setOneClickLoading] = useState(false);
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignForm, setAssignForm] = useState<any>({ inboundId: null, userId: null, speedId: null, expDays: null, flowGb: null });
@@ -94,6 +99,24 @@ export default function InboundPage() {
     setCreateLoading(false);
   };
 
+  const handleOneClick = async () => {
+    if (!oneClickNodeId) return toast.error("请选择节点");
+    setOneClickLoading(true);
+    try {
+      const res = await oneClickInbound(oneClickNodeId);
+      if (res.code === 0) {
+        toast.success("一键添加完成:所有协议已建好");
+        setOneClickOpen(false);
+        loadAll();
+      } else {
+        toast.error(res.msg || "一键添加失败");
+      }
+    } catch (e) {
+      toast.error("一键添加失败");
+    }
+    setOneClickLoading(false);
+  };
+
   const openAssign = (inbound: any) => {
     setAssignForm({ inboundId: inbound.id, userId: null, speedId: null, expDays: null, flowGb: null });
     setResultLink("");
@@ -135,15 +158,27 @@ export default function InboundPage() {
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold">协议管理</h1>
-        <Button
-          color="primary"
-          onPress={() => {
-            setCreateForm({ nodeId: null, protocol: "vless", sni: "www.apple.com", dest: "", remark: "" });
-            setCreateOpen(true);
-          }}
-        >
-          新增入站
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            color="secondary"
+            variant="flat"
+            onPress={() => {
+              setOneClickNodeId(null);
+              setOneClickOpen(true);
+            }}
+          >
+            ⚡ 一键添加
+          </Button>
+          <Button
+            color="primary"
+            onPress={() => {
+              setCreateForm({ nodeId: null, protocol: "vless", sni: "www.apple.com", dest: "", remark: "" });
+              setCreateOpen(true);
+            }}
+          >
+            新增入站
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3">
@@ -175,6 +210,32 @@ export default function InboundPage() {
           <div className="text-center text-default-400 py-8">还没有入站,点右上角「新增入站」</div>
         )}
       </div>
+
+      {/* 一键添加:选节点,把所有支持的协议一键全建出来 */}
+      <Modal isOpen={oneClickOpen} onClose={() => setOneClickOpen(false)}>
+        <ModalContent>
+          <ModalHeader>⚡ 一键添加所有协议</ModalHeader>
+          <ModalBody className="space-y-3">
+            <div className="text-sm text-default-500">
+              在选中的节点上一键建好 <b>VLESS-Reality、Trojan-Reality、VMess、Shadowsocks</b>(端口、密钥自动生成,Reality 默认借 www.apple.com)。建好后各自「分配用户」出链接即可。
+            </div>
+            <Select
+              label="节点"
+              placeholder="选一台节点(需在线)"
+              selectedKeys={oneClickNodeId ? [String(oneClickNodeId)] : []}
+              onSelectionChange={(k) => setOneClickNodeId(Number(Array.from(k)[0]))}
+            >
+              {nodes.map((n) => (
+                <SelectItem key={n.id}>{n.name}</SelectItem>
+              ))}
+            </Select>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={() => setOneClickOpen(false)}>取消</Button>
+            <Button color="secondary" isLoading={oneClickLoading} onPress={handleOneClick}>一键全建</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* 新建入站 */}
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)}>

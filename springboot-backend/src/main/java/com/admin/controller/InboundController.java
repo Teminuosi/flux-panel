@@ -35,6 +35,14 @@ public class InboundController extends BaseController {
         return inboundService.createInbound(dto);
     }
 
+    /** 一键添加:在指定节点上把所有支持的协议一键全建出来(像 s-ui 的一键添加) */
+    @LogAnnotation
+    @RequireRole
+    @PostMapping("/one-click")
+    public R oneClick(@RequestBody Map<String, Object> body) {
+        return inboundService.oneClickCreate(Long.valueOf(String.valueOf(body.get("nodeId"))));
+    }
+
     @RequireRole
     @PostMapping("/list")
     public R list() {

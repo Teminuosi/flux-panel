@@ -130,6 +130,31 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         return R.ok(in);
     }
 
+    @Override
+    public R oneClickCreate(Long nodeId) {
+        Node node = nodeMapper.selectById(nodeId);
+        if (node == null) {
+            return R.err("节点不存在");
+        }
+        // 支持的协议一键全建(reality 类默认借 www.apple.com)
+        String[] protocols = {"vless", "trojan", "vmess", "shadowsocks"};
+        List<Object> created = new java.util.ArrayList<>();
+        for (String p : protocols) {
+            InboundDto dto = new InboundDto();
+            dto.setNodeId(nodeId);
+            dto.setProtocol(p);
+            if ("vless".equals(p) || "trojan".equals(p)) {
+                dto.setSni("www.apple.com");
+            }
+            R r = createInbound(dto);
+            if (r.getCode() != 0) {
+                return R.err("一键添加中断(" + p + "):" + r.getMsg() + "(已成功 " + created.size() + " 个)");
+            }
+            created.add(r.getData());
+        }
+        return R.ok(created);
+    }
+
     /** SS-2022 密钥:32 字节随机 → 标准 base64(带 padding),sing-box 的 password 要这个格式 */
     private String genSsKey() {
         byte[] b = new byte[32];

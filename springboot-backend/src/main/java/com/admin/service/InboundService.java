@@ -17,6 +17,9 @@ public interface InboundService extends IService<Inbound> {
     /** 新建入站(节点生成 Reality 密钥 → 存 → 推 sing-box 配置) */
     R createInbound(InboundDto dto);
 
+    /** 一键添加:在指定节点上把所有支持的协议一键全建出来 */
+    R oneClickCreate(Long nodeId);
+
     /** 入站列表 */
     R getInbounds();
 
