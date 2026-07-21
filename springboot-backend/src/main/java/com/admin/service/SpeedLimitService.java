@@ -42,4 +42,10 @@ public interface SpeedLimitService extends IService<SpeedLimit> {
      * @return 结果
      */
     R deleteSpeedLimit(Long id);
+
+    /**
+     * 把某限速规则的限速器下发到指定节点(合体面板:协议转发所在节点可能和规则创建时的隧道不同,
+     * 分配协议用户时按需把限速器推到协议节点,规则本身不用绑隧道)。
+     */
+    R ensureLimiterOnNode(Integer speedId, Long nodeId);
 }

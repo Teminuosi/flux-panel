@@ -118,11 +118,9 @@ export default function LimitPage() {
     if (!form.speed || form.speed < 1) {
       newErrors.speed = '请输入有效的速度限制（≥1 Mbps）';
     }
-    
-    if (!form.tunnelId) {
-      newErrors.tunnelId = '请选择要绑定的隧道';
-    }
-    
+
+    // 隧道可选:合体面板的协议限速不用绑隧道(分配协议用户时自动把限速器推到协议节点)
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -422,8 +420,8 @@ export default function LimitPage() {
                     />
 
                     <Select
-                      label="绑定隧道"
-                      placeholder="请选择要绑定的隧道"
+                      label="绑定隧道(可选)"
+                      placeholder="协议限速可不选;转发限速才需要选隧道"
                       selectedKeys={form.tunnelId ? [form.tunnelId.toString()] : []}
                       onSelectionChange={(keys) => {
                         const selectedKey = Array.from(keys)[0] as string;

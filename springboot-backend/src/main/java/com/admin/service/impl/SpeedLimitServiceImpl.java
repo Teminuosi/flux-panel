@@ -96,26 +96,29 @@ public class SpeedLimitServiceImpl extends ServiceImpl<SpeedLimitMapper, SpeedLi
      */
     @Override
     public R createSpeedLimit(SpeedLimitDto speedLimitDto) {
-        // 1. 验证隧道
-        TunnelValidationResult tunnelValidation = validateTunnelWithResult(speedLimitDto.getTunnelId(), speedLimitDto.getTunnelName());
-        if (tunnelValidation.isHasError()) {
-            return R.err(tunnelValidation.getErrorMessage());
+        // 隧道可选:填了 → 按原逻辑验证 + 给该隧道入口节点下发限速器;
+        // 不填(合体面板协议用)→ 只存规则,分配协议用户时再按需把限速器推到协议节点(ensureLimiterOnNode)。
+        TunnelValidationResult tunnelValidation = null;
+        if (speedLimitDto.getTunnelId() != null) {
+            tunnelValidation = validateTunnelWithResult(speedLimitDto.getTunnelId(), speedLimitDto.getTunnelName());
+            if (tunnelValidation.isHasError()) {
+                return R.err(tunnelValidation.getErrorMessage());
+            }
         }
 
-        // 2. 创建限速规则实体
         SpeedLimit speedLimit = createSpeedLimitEntity(speedLimitDto);
         if (!this.save(speedLimit)) {
             return R.err(ERROR_CREATE_MSG);
         }
 
-        // 3. 调用Gost API添加限速器
-        R gostResult = addGostLimiter(speedLimit, tunnelValidation.getTunnel());
-        if (gostResult.getCode() != 0) {
-            handleGostOperationFailure(speedLimit);
-            this.removeById(speedLimit.getId());
-            return gostResult;
+        if (tunnelValidation != null) {
+            R gostResult = addGostLimiter(speedLimit, tunnelValidation.getTunnel());
+            if (gostResult.getCode() != 0) {
+                handleGostOperationFailure(speedLimit);
+                this.removeById(speedLimit.getId());
+                return gostResult;
+            }
         }
-        
         return R.ok();
     }
 
@@ -280,9 +283,24 @@ public class SpeedLimitServiceImpl extends ServiceImpl<SpeedLimitMapper, SpeedLi
         return R.ok();
     }
 
+    @Override
+    public R ensureLimiterOnNode(Integer speedId, Long nodeId) {
+        if (speedId == null || nodeId == null) {
+            return R.ok();
+        }
+        SpeedLimit sl = this.getById(speedId.longValue());
+        if (sl == null) {
+            return R.err("限速规则不存在");
+        }
+        String speedInMBps = convertBitsToMBps(sl.getSpeed());
+        String totalInMBps = (sl.getTotal() != null && sl.getTotal() > 0) ? convertBitsToMBps(sl.getTotal()) : null;
+        GostDto r = GostUtil.AddLimiters(nodeId, sl.getId(), speedInMBps, sl.getMode(), totalInMBps);
+        return isGostOperationSuccess(r) ? R.ok() : R.err(r != null ? r.getMsg() : "下发限速器失败");
+    }
+
     /**
      * 添加Gost限速器
-     * 
+     *
      * @param speedLimit 限速规则对象
      * @param tunnel 隧道对象
      * @return 操作结果响应

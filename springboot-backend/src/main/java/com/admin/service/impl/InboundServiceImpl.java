@@ -21,6 +21,7 @@ import com.admin.mapper.TunnelMapper;
 import com.admin.mapper.UserMapper;
 import com.admin.service.ForwardService;
 import com.admin.service.InboundService;
+import com.admin.service.SpeedLimitService;
 import com.admin.service.TunnelService;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
@@ -60,6 +61,8 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
     private ForwardService forwardService;
     @Autowired
     private ForwardMapper forwardMapper;
+    @Autowired
+    private SpeedLimitService speedLimitService;
     @Autowired
     private UserMapper userMapper;
 
@@ -242,6 +245,14 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         // 2. 生成凭证(uuid 给 vless/vmess,password 给 trojan)
         String uuid = UUID.randomUUID().toString();
         String password = UUID.randomUUID().toString().replace("-", "");
+
+        // 2.5 若选了限速规则,先把限速器下发到协议节点(规则不用绑隧道,转发才能引用到它)
+        if (dto.getSpeedId() != null) {
+            R lr = speedLimitService.ensureLimiterOnNode(dto.getSpeedId(), node.getId());
+            if (lr.getCode() != 0) {
+                return R.err("下发限速器失败:" + lr.getMsg());
+            }
+        }
 
         // 3. 建该用户的 gost 前置转发(远程=127.0.0.1:入站口,绑限速/到期,归属车友)
         ForwardDto fdto = new ForwardDto();
