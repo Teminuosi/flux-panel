@@ -65,6 +65,24 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
 
     @Override
     public R createInbound(InboundDto dto) {
+        R built = buildAndSaveInbound(dto);
+        if (built.getCode() != 0) {
+            return built;
+        }
+        Inbound created = (Inbound) built.getData();
+        R push = pushNodeSingbox(created.getNodeId());
+        if (push.getCode() != 0) {
+            this.removeById(created.getId());
+            return push;
+        }
+        return R.ok(created);
+    }
+
+    /**
+     * 组装并入库一个入站,但【不推 sing-box 配置】。
+     * 一键添加时批量建、最后统一推一次,避免每建一个就重启 sing-box、反复重启触发 systemd 启动限流。
+     */
+    private R buildAndSaveInbound(InboundDto dto) {
         Node node = nodeMapper.selectById(dto.getNodeId());
         if (node == null) {
             return R.err("节点不存在");
@@ -127,13 +145,6 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         if (!this.save(in)) {
             return R.err("入站保存失败");
         }
-
-        // 推该节点 sing-box 配置(此时可能还没用户,空 users 也能起)
-        R push = pushNodeSingbox(node.getId());
-        if (push.getCode() != 0) {
-            this.removeById(in.getId());
-            return push;
-        }
         return R.ok(in);
     }
 
@@ -153,11 +164,16 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             if ("vless".equals(p) || "trojan".equals(p)) {
                 dto.setSni("www.apple.com");
             }
-            R r = createInbound(dto);
+            R r = buildAndSaveInbound(dto); // 只入库,不推送(否则每个都重启 sing-box,7 次触发 systemd 限流)
             if (r.getCode() != 0) {
                 return R.err("一键添加中断(" + p + "):" + r.getMsg() + "(已成功 " + created.size() + " 个)");
             }
             created.add(r.getData());
+        }
+        // 全部入库后,统一推一次配置(只重启一次 sing-box)
+        R push = pushNodeSingbox(nodeId);
+        if (push.getCode() != 0) {
+            return R.err("一键添加已入库,但下发 sing-box 配置失败:" + push.getMsg());
         }
         return R.ok(created);
     }
