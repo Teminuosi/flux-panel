@@ -29,7 +29,7 @@ export default function InboundPage() {
   const [speedRules, setSpeedRules] = useState<any[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<any>({ nodeId: null, sni: "www.microsoft.com", dest: "", remark: "" });
+  const [createForm, setCreateForm] = useState<any>({ nodeId: null, protocol: "shadowsocks", sni: "www.microsoft.com", dest: "", remark: "" });
   const [createLoading, setCreateLoading] = useState(false);
 
   const [assignOpen, setAssignOpen] = useState(false);
@@ -62,19 +62,24 @@ export default function InboundPage() {
   }, []);
 
   const nodeName = (id: number) => nodes.find((n) => n.id === id)?.name || id;
+  const protoLabel = (p: string) =>
+    p === "shadowsocks" ? "Shadowsocks-2022" : p === "vless" ? "vless/reality" : p;
 
   const handleCreate = async () => {
     if (!createForm.nodeId) return toast.error("请选择节点");
-    if (!createForm.sni) return toast.error("请填 SNI");
+    if (createForm.protocol === "vless" && !createForm.sni) return toast.error("VLESS-Reality 需要填 SNI");
     setCreateLoading(true);
     try {
-      const res = await createInbound({
+      const payload: any = {
         nodeId: createForm.nodeId,
-        sni: createForm.sni,
-        dest: createForm.dest,
+        protocol: createForm.protocol,
         remark: createForm.remark,
-        protocol: "vless",
-      });
+      };
+      if (createForm.protocol === "vless") {
+        payload.sni = createForm.sni;
+        payload.dest = createForm.dest;
+      }
+      const res = await createInbound(payload);
       if (res.code === 0) {
         toast.success("入站已创建");
         setCreateOpen(false);
@@ -128,11 +133,11 @@ export default function InboundPage() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl font-bold">协议管理(VLESS-Reality)</h1>
+        <h1 className="text-xl font-bold">协议管理</h1>
         <Button
           color="primary"
           onPress={() => {
-            setCreateForm({ nodeId: null, sni: "www.microsoft.com", dest: "", remark: "" });
+            setCreateForm({ nodeId: null, protocol: "shadowsocks", sni: "www.microsoft.com", dest: "", remark: "" });
             setCreateOpen(true);
           }}
         >
@@ -147,10 +152,11 @@ export default function InboundPage() {
               <div className="space-y-1 min-w-0">
                 <div className="font-semibold flex items-center gap-2">
                   <span className="truncate">{ib.remark || ib.tag}</span>
-                  <Chip size="sm" color="secondary">{ib.protocol}/reality</Chip>
+                  <Chip size="sm" color="secondary">{protoLabel(ib.protocol)}</Chip>
                 </div>
                 <div className="text-xs text-default-500 truncate">
-                  节点: {nodeName(ib.nodeId)} · 本机口: {ib.listenPort} · SNI: {ib.sni}
+                  节点: {nodeName(ib.nodeId)} · 本机口: {ib.listenPort}
+                  {ib.protocol === "vless" ? ` · SNI: ${ib.sni}` : " · 无域名无证书"}
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
@@ -172,8 +178,21 @@ export default function InboundPage() {
       {/* 新建入站 */}
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)}>
         <ModalContent>
-          <ModalHeader>新增 VLESS-Reality 入站</ModalHeader>
+          <ModalHeader>新增入站</ModalHeader>
           <ModalBody className="space-y-3">
+            <Select
+              label="协议"
+              selectedKeys={[createForm.protocol]}
+              onSelectionChange={(k) => setCreateForm({ ...createForm, protocol: String(Array.from(k)[0]) })}
+              description={
+                createForm.protocol === "shadowsocks"
+                  ? "Shadowsocks-2022:无域名无证书,任何客户端都通,最稳(推荐)"
+                  : "VLESS-Reality:无域名借 SNI;注意新版客户端因后量子指纹可能连不上"
+              }
+            >
+              <SelectItem key="shadowsocks">Shadowsocks-2022(推荐,最稳)</SelectItem>
+              <SelectItem key="vless">VLESS-Reality(无域名)</SelectItem>
+            </Select>
             <Select
               label="节点"
               placeholder="选一台节点"
@@ -184,17 +203,21 @@ export default function InboundPage() {
                 <SelectItem key={n.id}>{n.name}</SelectItem>
               ))}
             </Select>
-            <Input
-              label="SNI(借用的站点)"
-              value={createForm.sni}
-              onChange={(e) => setCreateForm({ ...createForm, sni: e.target.value })}
-              description="如 www.microsoft.com;客户端也用这个 SNI,不用自有域名"
-            />
-            <Input
-              label="Reality 目标(留空=同 SNI)"
-              value={createForm.dest}
-              onChange={(e) => setCreateForm({ ...createForm, dest: e.target.value })}
-            />
+            {createForm.protocol === "vless" && (
+              <>
+                <Input
+                  label="SNI(借用的站点)"
+                  value={createForm.sni}
+                  onChange={(e) => setCreateForm({ ...createForm, sni: e.target.value })}
+                  description="如 www.microsoft.com;客户端也用这个 SNI,不用自有域名"
+                />
+                <Input
+                  label="Reality 目标(留空=同 SNI)"
+                  value={createForm.dest}
+                  onChange={(e) => setCreateForm({ ...createForm, dest: e.target.value })}
+                />
+              </>
+            )}
             <Input
               label="备注"
               value={createForm.remark}

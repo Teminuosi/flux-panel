@@ -66,48 +66,72 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         if (node == null) {
             return R.err("节点不存在");
         }
+        String protocol = (dto.getProtocol() == null || dto.getProtocol().isEmpty())
+                ? "shadowsocks" : dto.getProtocol().toLowerCase();
 
-        // 1. 节点用 sing-box 生成 Reality 密钥对
-        GostDto kp = SingboxUtil.GenerateRealityKeypair(node.getId(), null);
-        // 注意:send_msg 返回的 GostDto 不设 code(节点响应只有 success/message/data),
-        // 判成功要看 msg == "OK"(与 ForwardServiceImpl.isGostOperationSuccess 一致),不能看 code。
-        if (kp == null || !"OK".equals(kp.getMsg()) || kp.getData() == null) {
-            return R.err("生成 Reality 密钥失败:" + (kp != null && kp.getMsg() != null ? kp.getMsg() : "节点无响应/超时"));
-        }
-        JSONObject kpData = JSON.parseObject(JSON.toJSONString(kp.getData()));
-        String privateKey = kpData.getString("privateKey");
-        String publicKey = kpData.getString("publicKey");
-        if (privateKey == null || publicKey == null) {
-            return R.err("Reality 密钥解析失败");
-        }
-
-        // 2. 组装入站(sing-box 只听 127.0.0.1)
+        // 通用字段(sing-box 一律 listen 127.0.0.1,公网口交给 gost 限速)
         Inbound in = new Inbound();
         in.setNodeId(node.getId());
-        in.setProtocol((dto.getProtocol() == null || dto.getProtocol().isEmpty()) ? "vless" : dto.getProtocol());
+        in.setProtocol(protocol);
         in.setListenPort(dto.getListenPort() != null ? dto.getListenPort() : allocateListenPort(node.getId()));
-        in.setSecurity("reality");
-        in.setSni(dto.getSni());
-        in.setDest((dto.getDest() != null && !dto.getDest().isEmpty()) ? dto.getDest() : dto.getSni());
-        in.setPublicKey(publicKey);
-        in.setPrivateKey(privateKey);
-        in.setShortId(randomShortId());
         in.setTag("in-" + node.getId() + "-" + in.getListenPort());
         in.setRemark(dto.getRemark());
         in.setStatus(1);
         in.setCreatedTime(System.currentTimeMillis());
         in.setUpdatedTime(System.currentTimeMillis());
+
+        // 按协议装配私有字段
+        if ("shadowsocks".equals(protocol)) {
+            // SS-2022:无 TLS、不依赖客户端指纹,绕开 reality 的后量子坑;单密码,用户靠 gost 口区分
+            in.setSecurity("none");
+            JSONObject cfg = new JSONObject();
+            cfg.put("method", "2022-blake3-aes-256-gcm");
+            cfg.put("password", genSsKey());
+            in.setConfigJson(cfg.toJSONString());
+        } else if ("vless".equals(protocol)) {
+            // VLESS-Reality(无域名):节点用 sing-box 生成 Reality 密钥对
+            if (dto.getSni() == null || dto.getSni().isEmpty()) {
+                return R.err("VLESS-Reality 需要 SNI");
+            }
+            GostDto kp = SingboxUtil.GenerateRealityKeypair(node.getId(), null);
+            // send_msg 返回的 GostDto 不设 code,判成功看 msg=="OK"(与 ForwardServiceImpl 一致)
+            if (kp == null || !"OK".equals(kp.getMsg()) || kp.getData() == null) {
+                return R.err("生成 Reality 密钥失败:" + (kp != null && kp.getMsg() != null ? kp.getMsg() : "节点无响应/超时"));
+            }
+            JSONObject kpData = JSON.parseObject(JSON.toJSONString(kp.getData()));
+            String privateKey = kpData.getString("privateKey");
+            String publicKey = kpData.getString("publicKey");
+            if (privateKey == null || publicKey == null) {
+                return R.err("Reality 密钥解析失败");
+            }
+            in.setSecurity("reality");
+            in.setSni(dto.getSni());
+            in.setDest((dto.getDest() != null && !dto.getDest().isEmpty()) ? dto.getDest() : dto.getSni());
+            in.setPublicKey(publicKey);
+            in.setPrivateKey(privateKey);
+            in.setShortId(randomShortId());
+        } else {
+            return R.err("暂不支持的协议:" + protocol);
+        }
+
         if (!this.save(in)) {
             return R.err("入站保存失败");
         }
 
-        // 3. 推该节点 sing-box 配置(此时可能还没用户,空 users 也能起)
+        // 推该节点 sing-box 配置(此时可能还没用户,空 users 也能起)
         R push = pushNodeSingbox(node.getId());
         if (push.getCode() != 0) {
             this.removeById(in.getId());
             return push;
         }
         return R.ok(in);
+    }
+
+    /** SS-2022 密钥:32 字节随机 → 标准 base64(带 padding),sing-box 的 password 要这个格式 */
+    private String genSsKey() {
+        byte[] b = new byte[32];
+        new java.security.SecureRandom().nextBytes(b);
+        return java.util.Base64.getEncoder().encodeToString(b);
     }
 
     @Override
@@ -196,8 +220,15 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
 
         // 7. 出客户端链接(地址=该转发的公网口,被限速)
         String remark = (in.getRemark() != null && !in.getRemark().isEmpty()) ? in.getRemark() : in.getTag();
-        String link = SingboxUtil.buildVlessRealityLink(uuid, node.getServerIp(), forward.getInPort(),
-                in.getSni(), in.getPublicKey(), in.getShortId(), remark);
+        String link;
+        if ("shadowsocks".equals(in.getProtocol())) {
+            JSONObject cfg = JSON.parseObject(in.getConfigJson() == null ? "{}" : in.getConfigJson());
+            link = SingboxUtil.buildShadowsocksLink(node.getServerIp(), forward.getInPort(),
+                    cfg.getString("method"), cfg.getString("password"), remark);
+        } else {
+            link = SingboxUtil.buildVlessRealityLink(uuid, node.getServerIp(), forward.getInPort(),
+                    in.getSni(), in.getPublicKey(), in.getShortId(), remark);
+        }
 
         JSONObject result = new JSONObject();
         result.put("inboundUserId", iu.getId());

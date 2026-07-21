@@ -3,9 +3,12 @@ package com.admin.common.utils;
 import com.admin.common.dto.GostDto;
 import com.admin.entity.Inbound;
 import com.admin.entity.InboundUser;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -105,15 +108,59 @@ public class SingboxUtil {
         return config;
     }
 
-    /** 按协议生成单个 sing-box 入站(阶段1 只做 vless-reality) */
+    /** 按协议生成单个 sing-box 入站 */
     public static JSONObject buildInbound(Inbound in, List<InboundUser> users) {
         String protocol = in.getProtocol() == null ? "" : in.getProtocol().toLowerCase();
         switch (protocol) {
             case "vless":
                 return buildVlessReality(in, users);
+            case "shadowsocks":
+                return buildShadowsocks(in);
             // 阶段2 再补 trojan / vmess / hysteria2
             default:
                 return null;
+        }
+    }
+
+    /**
+     * Shadowsocks-2022 入站(无 TLS、不依赖客户端指纹,绕开 reality 的后量子坑)。
+     * 单密码,用户靠各自的 gost 公网口区分/限速;method+password 存在 inbound.configJson。
+     */
+    private static JSONObject buildShadowsocks(Inbound in) {
+        JSONObject cfg = parseConfig(in.getConfigJson());
+        JSONObject inbound = new JSONObject();
+        inbound.put("type", "shadowsocks");
+        inbound.put("tag", in.getTag());
+        inbound.put("listen", "127.0.0.1");
+        inbound.put("listen_port", in.getListenPort());
+        inbound.put("method", cfg.getString("method"));
+        inbound.put("password", cfg.getString("password"));
+        return inbound;
+    }
+
+    /** 生成 Shadowsocks 客户端分享链接(SIP002:ss://base64url(method:password)@ip:port#remark)。地址=gost 公网口 */
+    public static String buildShadowsocksLink(String serverIp, Integer port, String method, String password, String remark) {
+        String userinfo = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString((method + ":" + password).getBytes(StandardCharsets.UTF_8));
+        return "ss://" + userinfo + "@" + serverIp + ":" + port + "#" + urlEncode(remark);
+    }
+
+    private static JSONObject parseConfig(String configJson) {
+        if (configJson == null || configJson.isEmpty()) {
+            return new JSONObject();
+        }
+        try {
+            return JSON.parseObject(configJson);
+        } catch (Exception e) {
+            return new JSONObject();
+        }
+    }
+
+    private static String urlEncode(String s) {
+        try {
+            return java.net.URLEncoder.encode(s == null ? "" : s, "UTF-8");
+        } catch (Exception e) {
+            return "";
         }
     }
 
