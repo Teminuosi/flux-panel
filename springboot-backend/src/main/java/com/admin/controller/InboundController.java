@@ -56,6 +56,14 @@ public class InboundController extends BaseController {
         return inboundService.deleteInbound(Long.valueOf(String.valueOf(body.get("id"))));
     }
 
+    /** 一键清空某节点上的所有协议入站 */
+    @LogAnnotation
+    @RequireRole
+    @PostMapping("/delete-by-node")
+    public R deleteByNode(@RequestBody Map<String, Object> body) {
+        return inboundService.deleteInboundsByNode(Long.valueOf(String.valueOf(body.get("nodeId"))));
+    }
+
     @LogAnnotation
     @RequireRole
     @PostMapping("/assign")

@@ -26,6 +26,9 @@ public interface InboundService extends IService<Inbound> {
     /** 删除入站(连带其用户的 gost 转发 + 重推配置) */
     R deleteInbound(Long id);
 
+    /** 一键清空某节点上的所有协议入站(连带其转发/用户) */
+    R deleteInboundsByNode(Long nodeId);
+
     /** 给入站分配子账号(生成 uuid + 建限速转发 + 重推 + 出客户端链接) */
     R assignUser(InboundUserDto dto);
 

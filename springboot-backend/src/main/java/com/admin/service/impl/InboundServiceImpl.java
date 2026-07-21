@@ -13,6 +13,7 @@ import com.admin.entity.InboundUser;
 import com.admin.entity.Node;
 import com.admin.entity.Tunnel;
 import com.admin.entity.User;
+import com.admin.mapper.ForwardMapper;
 import com.admin.mapper.InboundMapper;
 import com.admin.mapper.InboundUserMapper;
 import com.admin.mapper.NodeMapper;
@@ -57,6 +58,8 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
     private TunnelService tunnelService;
     @Autowired
     private ForwardService forwardService;
+    @Autowired
+    private ForwardMapper forwardMapper;
     @Autowired
     private UserMapper userMapper;
 
@@ -159,6 +162,15 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         return R.ok(created);
     }
 
+    @Override
+    public R deleteInboundsByNode(Long nodeId) {
+        List<Inbound> inbounds = this.list(new QueryWrapper<Inbound>().eq("node_id", nodeId));
+        for (Inbound in : inbounds) {
+            deleteInbound(in.getId());
+        }
+        return R.ok();
+    }
+
     /** SS-2022 密钥:32 字节随机 → 标准 base64(带 padding),sing-box 的 password 要这个格式 */
     private String genSsKey() {
         byte[] b = new byte[32];
@@ -219,6 +231,7 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         ForwardDto fdto = new ForwardDto();
         fdto.setName("inbound-" + in.getId() + "-user-" + user.getId());
         fdto.setTunnelId(tunnel.getId().intValue());
+        fdto.setInPort(allocateHybridPort(node.getId())); // 高段公网口(20000+),避开被占的低端口
         fdto.setRemoteAddr("127.0.0.1:" + in.getListenPort());
         fdto.setStrategy("fifo");
         fdto.setSpeedId(dto.getSpeedId());
@@ -323,6 +336,30 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             return R.err("下发 sing-box 配置失败:" + (r != null && r.getMsg() != null ? r.getMsg() : "节点无响应/超时"));
         }
         return R.ok();
+    }
+
+    /** 给 hybrid 转发分配高段公网口(20000-39999),避开被占的低端口 + sing-box 段(40000+) */
+    private Integer allocateHybridPort(Long nodeId) {
+        java.util.Set<Integer> used = new java.util.HashSet<>();
+        List<Tunnel> tunnels = tunnelMapper.selectList(new QueryWrapper<Tunnel>().eq("in_node_id", nodeId));
+        if (tunnels != null && !tunnels.isEmpty()) {
+            java.util.List<Long> tids = new java.util.ArrayList<>();
+            for (Tunnel t : tunnels) {
+                tids.add(t.getId());
+            }
+            List<Forward> fs = forwardMapper.selectList(new QueryWrapper<Forward>().in("tunnel_id", tids));
+            for (Forward f : fs) {
+                if (f.getInPort() != null) {
+                    used.add(f.getInPort());
+                }
+            }
+        }
+        for (int p = 20000; p <= 39999; p++) {
+            if (!used.contains(p)) {
+                return p;
+            }
+        }
+        return null;
     }
 
     /** 确保节点有一条端口转发隧道(入口机=该节点),没有则建 */

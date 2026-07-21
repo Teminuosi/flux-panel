@@ -11,6 +11,7 @@ import {
   createInbound,
   oneClickInbound,
   deleteInbound,
+  deleteInboundsByNode,
   assignInboundUser,
   getNodeList,
   getAllUsers,
@@ -153,6 +154,17 @@ export default function InboundPage() {
     }
   };
 
+  const handleClearNode = async (nodeId: number, nodeName: string) => {
+    if (!window.confirm(`确定清空「${nodeName}」上的所有协议入站?(连带其转发/用户)`)) return;
+    const res = await deleteInboundsByNode(nodeId);
+    if (res.code === 0) {
+      toast.success("已清空该机协议");
+      loadAll();
+    } else {
+      toast.error(res.msg || "清空失败");
+    }
+  };
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
@@ -190,6 +202,15 @@ export default function InboundPage() {
                 <div className="flex items-center gap-2 border-b border-default-200 pb-1">
                   <span className="font-semibold">🖥️ {n.name}</span>
                   <Chip size="sm" variant="flat" color="primary">{nodeInbounds.length} 个协议</Chip>
+                  <Button
+                    size="sm"
+                    color="danger"
+                    variant="light"
+                    className="ml-auto"
+                    onPress={() => handleClearNode(n.id, n.name)}
+                  >
+                    清空该机协议
+                  </Button>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2 pl-1">
                   {nodeInbounds.map((ib) => (
