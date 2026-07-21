@@ -66,7 +66,6 @@ export default function InboundPage() {
     loadAll();
   }, []);
 
-  const nodeName = (id: number) => nodes.find((n) => n.id === id)?.name || id;
   const protoLabel = (p: string) =>
     (({ vless: "VLESS-Reality", trojan: "Trojan-Reality", vmess: "VMess", shadowsocks: "Shadowsocks-2022", hysteria2: "Hysteria2", tuic: "TUIC", anytls: "AnyTLS" } as any)[p] || p);
   const isReality = (p: string) => p === "vless" || p === "trojan";
