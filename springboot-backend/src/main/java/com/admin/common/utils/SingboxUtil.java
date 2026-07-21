@@ -120,7 +120,12 @@ public class SingboxUtil {
                 return buildVmess(in, users);
             case "shadowsocks":
                 return buildShadowsocks(in);
-            // 待补:hysteria2 / tuic(需自签证书)
+            case "hysteria2":
+                return buildHysteria2(in, users);
+            case "tuic":
+                return buildTuic(in, users);
+            case "anytls":
+                return buildAnyTls(in, users);
             default:
                 return null;
         }
@@ -290,5 +295,111 @@ public class SingboxUtil {
                 + "&pbk=" + (publicKey == null ? "" : publicKey)
                 + "&sid=" + (shortId == null ? "" : shortId)
                 + "&type=tcp#" + urlEncode(remark);
+    }
+
+    // ---- 自签证书类协议(Hysteria2 / TUIC / AnyTLS,无域名,客户端 insecure)----
+    // 证书由节点端自动生成,固定路径;面板配置直接引用。
+    private static final String SELF_CERT = "/etc/gost/certs/self.crt";
+    private static final String SELF_KEY = "/etc/gost/certs/self.key";
+
+    /** 自签 TLS 配置块 */
+    private static JSONObject buildSelfTls(Inbound in) {
+        JSONObject tls = new JSONObject();
+        tls.put("enabled", true);
+        tls.put("server_name", (in.getSni() == null || in.getSni().isEmpty()) ? "www.bing.com" : in.getSni());
+        tls.put("certificate_path", SELF_CERT);
+        tls.put("key_path", SELF_KEY);
+        return tls;
+    }
+
+    /** Hysteria2 入站(QUIC/UDP,自签证书);凭证是 password */
+    private static JSONObject buildHysteria2(Inbound in, List<InboundUser> users) {
+        JSONObject inbound = new JSONObject();
+        inbound.put("type", "hysteria2");
+        inbound.put("tag", in.getTag());
+        inbound.put("listen", "127.0.0.1");
+        inbound.put("listen_port", in.getListenPort());
+        JSONArray userArr = new JSONArray();
+        if (users != null) {
+            for (InboundUser u : users) {
+                if (u.getPassword() == null || u.getPassword().isEmpty()) continue;
+                if (u.getStatus() != null && u.getStatus() == 0) continue;
+                JSONObject uj = new JSONObject();
+                uj.put("password", u.getPassword());
+                userArr.add(uj);
+            }
+        }
+        inbound.put("users", userArr);
+        inbound.put("tls", buildSelfTls(in));
+        return inbound;
+    }
+
+    /** TUIC 入站(QUIC/UDP,自签证书,alpn h3);凭证是 uuid + password */
+    private static JSONObject buildTuic(Inbound in, List<InboundUser> users) {
+        JSONObject inbound = new JSONObject();
+        inbound.put("type", "tuic");
+        inbound.put("tag", in.getTag());
+        inbound.put("listen", "127.0.0.1");
+        inbound.put("listen_port", in.getListenPort());
+        inbound.put("congestion_control", "bbr");
+        JSONArray userArr = new JSONArray();
+        if (users != null) {
+            for (InboundUser u : users) {
+                if (u.getUuid() == null || u.getUuid().isEmpty()) continue;
+                if (u.getStatus() != null && u.getStatus() == 0) continue;
+                JSONObject uj = new JSONObject();
+                uj.put("uuid", u.getUuid());
+                uj.put("password", u.getPassword());
+                userArr.add(uj);
+            }
+        }
+        inbound.put("users", userArr);
+        JSONObject tls = buildSelfTls(in);
+        JSONArray alpn = new JSONArray();
+        alpn.add("h3");
+        tls.put("alpn", alpn);
+        inbound.put("tls", tls);
+        return inbound;
+    }
+
+    /** AnyTLS 入站(TCP/TLS,自签证书);凭证是 password */
+    private static JSONObject buildAnyTls(Inbound in, List<InboundUser> users) {
+        JSONObject inbound = new JSONObject();
+        inbound.put("type", "anytls");
+        inbound.put("tag", in.getTag());
+        inbound.put("listen", "127.0.0.1");
+        inbound.put("listen_port", in.getListenPort());
+        JSONArray userArr = new JSONArray();
+        if (users != null) {
+            for (InboundUser u : users) {
+                if (u.getPassword() == null || u.getPassword().isEmpty()) continue;
+                if (u.getStatus() != null && u.getStatus() == 0) continue;
+                JSONObject uj = new JSONObject();
+                uj.put("password", u.getPassword());
+                userArr.add(uj);
+            }
+        }
+        inbound.put("users", userArr);
+        inbound.put("tls", buildSelfTls(in));
+        return inbound;
+    }
+
+    /** Hysteria2 客户端链接 */
+    public static String buildHysteria2Link(String password, String serverIp, Integer port, String sni, String remark) {
+        return "hysteria2://" + password + "@" + serverIp + ":" + port
+                + "?sni=" + (sni == null ? "" : sni) + "&insecure=1#" + urlEncode(remark);
+    }
+
+    /** TUIC 客户端链接 */
+    public static String buildTuicLink(String uuid, String password, String serverIp, Integer port, String sni, String remark) {
+        return "tuic://" + uuid + ":" + password + "@" + serverIp + ":" + port
+                + "?congestion_control=bbr&alpn=h3&sni=" + (sni == null ? "" : sni)
+                + "&allow_insecure=1#" + urlEncode(remark);
+    }
+
+    /** AnyTLS 客户端链接 */
+    public static String buildAnyTlsLink(String password, String serverIp, Integer port, String sni, String remark) {
+        return "anytls://" + password + "@" + serverIp + ":" + port
+                + "?insecure=1&sni=" + (sni == null ? "" : sni) + "#" + urlEncode(remark);
     }
 }

@@ -91,6 +91,10 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         } else if ("vmess".equals(protocol)) {
             // VMess(TCP,无 TLS,无域名):无需密钥,用户 assign 时发 uuid
             in.setSecurity("none");
+        } else if ("hysteria2".equals(protocol) || "tuic".equals(protocol) || "anytls".equals(protocol)) {
+            // 自签 TLS(Hy2/TUIC 走 QUIC/UDP,AnyTLS 走 TCP;客户端 insecure);证书由节点端自动生成
+            in.setSecurity("tls");
+            in.setSni((dto.getSni() != null && !dto.getSni().isEmpty()) ? dto.getSni() : "www.bing.com");
         } else if ("vless".equals(protocol) || "trojan".equals(protocol)) {
             // VLESS / Trojan 均走 Reality(无域名):节点用 sing-box 生成 Reality 密钥对
             if (dto.getSni() == null || dto.getSni().isEmpty()) {
@@ -137,7 +141,7 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             return R.err("节点不存在");
         }
         // 支持的协议一键全建(reality 类默认借 www.apple.com)
-        String[] protocols = {"vless", "trojan", "vmess", "shadowsocks"};
+        String[] protocols = {"vless", "trojan", "vmess", "shadowsocks", "hysteria2", "tuic", "anytls"};
         List<Object> created = new java.util.ArrayList<>();
         for (String p : protocols) {
             InboundDto dto = new InboundDto();
@@ -264,6 +268,15 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             case "trojan":
                 link = SingboxUtil.buildTrojanRealityLink(password, node.getServerIp(), forward.getInPort(),
                         in.getSni(), in.getPublicKey(), in.getShortId(), remark);
+                break;
+            case "hysteria2":
+                link = SingboxUtil.buildHysteria2Link(password, node.getServerIp(), forward.getInPort(), in.getSni(), remark);
+                break;
+            case "tuic":
+                link = SingboxUtil.buildTuicLink(uuid, password, node.getServerIp(), forward.getInPort(), in.getSni(), remark);
+                break;
+            case "anytls":
+                link = SingboxUtil.buildAnyTlsLink(password, node.getServerIp(), forward.getInPort(), in.getSni(), remark);
                 break;
             default: // vless
                 link = SingboxUtil.buildVlessRealityLink(uuid, node.getServerIp(), forward.getInPort(),

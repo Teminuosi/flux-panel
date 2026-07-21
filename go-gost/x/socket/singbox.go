@@ -63,6 +63,9 @@ func (w *WebSocketReporter) handleSetSingboxConfig(data interface{}) error {
 	if err := ensureSingboxInstalled(req.Mirror); err != nil {
 		return err
 	}
+	if err := ensureSelfCert(); err != nil { // Hysteria2/TUIC/AnyTLS 用的自签证书,没有则生成
+		return err
+	}
 	if err := writeSingboxConfig(req.Config); err != nil {
 		return err
 	}
@@ -70,6 +73,55 @@ func (w *WebSocketReporter) handleSetSingboxConfig(data interface{}) error {
 		return err
 	}
 	return nil
+}
+
+func selfCertPath() string { return filepath.Join(installDir, "certs", "self.crt") }
+func selfKeyPath() string  { return filepath.Join(installDir, "certs", "self.key") }
+
+// ensureSelfCert 没有自签证书就用 sing-box 生成一张(Hysteria2/TUIC/AnyTLS 共用,客户端用 insecure=1)。
+// 面板侧配置固定引用 /etc/gost/certs/self.crt|self.key。
+func ensureSelfCert() error {
+	crt := selfCertPath()
+	if fi, err := os.Stat(crt); err == nil && fi.Size() > 0 {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(crt), 0o755); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, singboxBinPath(), "generate", "tls-keypair", "www.bing.com", "--months", "120").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("生成自签证书失败: %v, %s", err, string(out))
+	}
+	key, cert := splitPem(string(out))
+	if key == "" || cert == "" {
+		return fmt.Errorf("解析自签证书失败: %s", string(out))
+	}
+	if err := os.WriteFile(selfKeyPath(), []byte(key), 0o600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(crt, []byte(cert), 0o644); err != nil {
+		return err
+	}
+	return nil
+}
+
+// splitPem 从 `sing-box generate tls-keypair` 输出里拆出 私钥块 和 证书块
+func splitPem(out string) (key, cert string) {
+	const kb, ke = "-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----"
+	const cb, ce = "-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----"
+	if i := strings.Index(out, kb); i >= 0 {
+		if j := strings.Index(out, ke); j >= 0 {
+			key = out[i:j+len(ke)] + "\n"
+		}
+	}
+	if i := strings.Index(out, cb); i >= 0 {
+		if j := strings.Index(out, ce); j >= 0 {
+			cert = out[i:j+len(ce)] + "\n"
+		}
+	}
+	return key, cert
 }
 
 func (w *WebSocketReporter) handleDeleteSingbox(data interface{}) error {

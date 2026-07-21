@@ -68,7 +68,7 @@ export default function InboundPage() {
 
   const nodeName = (id: number) => nodes.find((n) => n.id === id)?.name || id;
   const protoLabel = (p: string) =>
-    (({ vless: "VLESS-Reality", trojan: "Trojan-Reality", vmess: "VMess", shadowsocks: "Shadowsocks-2022" } as any)[p] || p);
+    (({ vless: "VLESS-Reality", trojan: "Trojan-Reality", vmess: "VMess", shadowsocks: "Shadowsocks-2022", hysteria2: "Hysteria2", tuic: "TUIC", anytls: "AnyTLS" } as any)[p] || p);
   const isReality = (p: string) => p === "vless" || p === "trojan";
 
   const handleCreate = async () => {
@@ -181,33 +181,48 @@ export default function InboundPage() {
         </div>
       </div>
 
-      <div className="grid gap-3">
-        {inbounds.map((ib) => (
-          <Card key={ib.id}>
-            <CardBody className="flex flex-row justify-between items-center">
-              <div className="space-y-1 min-w-0">
-                <div className="font-semibold flex items-center gap-2">
-                  <span className="truncate">{ib.remark || ib.tag}</span>
-                  <Chip size="sm" color="secondary">{protoLabel(ib.protocol)}</Chip>
+      <div className="space-y-5">
+        {nodes
+          .filter((n) => inbounds.some((ib) => ib.nodeId === n.id))
+          .map((n) => {
+            const nodeInbounds = inbounds.filter((ib) => ib.nodeId === n.id);
+            return (
+              <div key={n.id} className="space-y-2">
+                <div className="flex items-center gap-2 border-b border-default-200 pb-1">
+                  <span className="font-semibold">🖥️ {n.name}</span>
+                  <Chip size="sm" variant="flat" color="primary">{nodeInbounds.length} 个协议</Chip>
                 </div>
-                <div className="text-xs text-default-500 truncate">
-                  节点: {nodeName(ib.nodeId)} · 本机口: {ib.listenPort}
-                  {isReality(ib.protocol) ? ` · SNI: ${ib.sni}` : " · 无域名无证书"}
+                <div className="grid gap-2 md:grid-cols-2 pl-1">
+                  {nodeInbounds.map((ib) => (
+                    <Card key={ib.id}>
+                      <CardBody className="flex flex-row justify-between items-center">
+                        <div className="space-y-1 min-w-0">
+                          <div className="font-semibold flex items-center gap-2">
+                            <span className="truncate">{ib.remark || ib.tag}</span>
+                            <Chip size="sm" color="secondary">{protoLabel(ib.protocol)}</Chip>
+                          </div>
+                          <div className="text-xs text-default-500 truncate">
+                            本机口: {ib.listenPort}
+                            {isReality(ib.protocol) ? ` · SNI: ${ib.sni}` : " · 无域名无证书"}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <Button size="sm" color="primary" variant="flat" onPress={() => openAssign(ib)}>
+                            分配用户
+                          </Button>
+                          <Button size="sm" color="danger" variant="flat" onPress={() => handleDelete(ib.id)}>
+                            删除
+                          </Button>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ))}
                 </div>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <Button size="sm" color="primary" variant="flat" onPress={() => openAssign(ib)}>
-                  分配用户
-                </Button>
-                <Button size="sm" color="danger" variant="flat" onPress={() => handleDelete(ib.id)}>
-                  删除
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-        ))}
+            );
+          })}
         {inbounds.length === 0 && (
-          <div className="text-center text-default-400 py-8">还没有入站,点右上角「新增入站」</div>
+          <div className="text-center text-default-400 py-8">还没有入站,点右上角「一键添加」或「新增入站」</div>
         )}
       </div>
 
@@ -217,7 +232,7 @@ export default function InboundPage() {
           <ModalHeader>⚡ 一键添加所有协议</ModalHeader>
           <ModalBody className="space-y-3">
             <div className="text-sm text-default-500">
-              在选中的节点上一键建好 <b>VLESS-Reality、Trojan-Reality、VMess、Shadowsocks</b>(端口、密钥自动生成,Reality 默认借 www.apple.com)。建好后各自「分配用户」出链接即可。
+              在选中的节点上一键建好全部协议:<b>VLESS-Reality、Trojan-Reality、VMess、Shadowsocks、Hysteria2、TUIC、AnyTLS</b>(端口、密钥、自签证书全自动)。建好后各自「分配用户」出链接即可。
             </div>
             <Select
               label="节点"
@@ -251,6 +266,8 @@ export default function InboundPage() {
                   ? "无域名借 Reality(SNI 借壳),抗封锁强(推荐)"
                   : createForm.protocol === "vmess"
                   ? "VMess:TCP 无 TLS,无域名,兼容各种老客户端"
+                  : ["hysteria2", "tuic", "anytls"].includes(createForm.protocol)
+                  ? "自签证书(无域名);客户端需勾选\"允许不安全/insecure\"。Hy2/TUIC 是 QUIC,快"
                   : "Shadowsocks-2022:无 TLS、任何客户端都通,简单稳"
               }
             >
@@ -258,6 +275,9 @@ export default function InboundPage() {
               <SelectItem key="trojan">Trojan-Reality(无域名)</SelectItem>
               <SelectItem key="vmess">VMess(无域名,兼容老客户端)</SelectItem>
               <SelectItem key="shadowsocks">Shadowsocks-2022(简单稳)</SelectItem>
+              <SelectItem key="hysteria2">Hysteria2(QUIC,快,自签证书)</SelectItem>
+              <SelectItem key="tuic">TUIC(QUIC,自签证书)</SelectItem>
+              <SelectItem key="anytls">AnyTLS(自签证书)</SelectItem>
             </Select>
             <Select
               label="节点"
