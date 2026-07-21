@@ -10,6 +10,7 @@ import com.admin.common.utils.JwtUtil;
 import com.admin.common.utils.WebSocketServer;
 import com.admin.entity.*;
 import com.admin.mapper.ForwardMapper;
+import com.admin.mapper.InboundMapper;
 import com.admin.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -62,6 +63,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
     @Resource
     NodeService nodeService;
+
+    // 合体面板:转发端口分配需避开协议入站占用的 sing-box 本机口
+    @Resource
+    private InboundMapper inboundMapper;
 
 
     @Override
@@ -1428,6 +1433,15 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 if (forward.getOutPort() != null) {
                     usedPorts.add(forward.getOutPort());
                 }
+            }
+        }
+
+        // 3. 合体面板:该节点上协议入站的 sing-box 本机端口也算占用
+        //    (转发公网口 0.0.0.0:X 会和 sing-box 127.0.0.1:X 同机 OS 级冲突)
+        List<Inbound> inbounds = inboundMapper.selectList(new QueryWrapper<Inbound>().eq("node_id", nodeId));
+        for (Inbound inbound : inbounds) {
+            if (inbound.getListenPort() != null) {
+                usedPorts.add(inbound.getListenPort());
             }
         }
 
