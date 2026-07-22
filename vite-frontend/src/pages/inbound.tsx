@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
-import { Input, Textarea } from "@heroui/input";
+import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/select";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Chip } from "@heroui/chip";
@@ -12,12 +12,10 @@ import {
   oneClickInbound,
   deleteInboundsByNode,
   assignAllToUser,
-  getUserSub,
   getNodeList,
   getAllUsers,
   getSpeedLimitList,
 } from "@/api";
-import { copyTextToClipboard } from "@/utils/clipboard";
 
 /**
  * 协议管理(合体面板)· 机器卡模式。
@@ -39,12 +37,10 @@ export default function InboundPage() {
   const [oneClickNodeId, setOneClickNodeId] = useState<number | null>(null);
   const [oneClickLoading, setOneClickLoading] = useState(false);
 
-  // 机器卡「分配用户」:把整台机器的协议分给车友
+  // 机器卡「分配用户」:把整台机器的协议分给车友(只分配,链接去「用户管理」拿)
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignForm, setAssignForm] = useState<any>({ nodeId: null, nodeName: "", protocolCount: 0, userId: null, speedId: null, expDays: null, flowGb: null });
   const [assignLoading, setAssignLoading] = useState(false);
-  const [assignSubToken, setAssignSubToken] = useState<string>("");
-  const subUrl = (token: string) => `${window.location.origin}/api/v1/open_api/sub?token=${token}`;
 
   const loadAll = async () => {
     try {
@@ -122,7 +118,6 @@ export default function InboundPage() {
 
   const openNodeAssign = (n: any, count: number) => {
     setAssignForm({ nodeId: n.id, nodeName: n.name, protocolCount: count, userId: null, speedId: null, expDays: null, flowGb: null });
-    setAssignSubToken("");
     setAssignOpen(true);
   };
 
@@ -136,8 +131,8 @@ export default function InboundPage() {
       if (assignForm.flowGb) payload.flow = Math.round(assignForm.flowGb * 1024 * 1024 * 1024);
       const res = await assignAllToUser(payload);
       if (res.code === 0) {
-        toast.success(`已分配 ${res.data?.assigned ?? 0} 个协议` + (res.data?.skipped ? `,跳过 ${res.data.skipped}(已分过)` : ""));
-        setAssignSubToken(res.data?.subToken || "");
+        toast.success(`已分配 ${res.data?.assigned ?? 0} 个协议` + (res.data?.skipped ? `,跳过 ${res.data.skipped}(已分过)` : "") + " · 订阅链接去「用户管理」拿");
+        setAssignOpen(false);
         loadAll();
       } else {
         toast.error(res.msg || "分配失败");
@@ -234,20 +229,13 @@ export default function InboundPage() {
           <ModalHeader>👤 给车友分配「{assignForm.nodeName}」</ModalHeader>
           <ModalBody className="space-y-3">
             <div className="text-sm text-default-500">
-              把这台机器上的 <b>{assignForm.protocolCount} 个协议</b> 一次分给车友,出一条订阅链接。车友加这一条订阅,机器全部协议自动到手、以后加新协议自动更新。
+              把这台机器上的 <b>{assignForm.protocolCount} 个协议</b> 一次分给车友。分配完到「用户管理」页,点该车友的「🔗 订阅链接」拿链接发给他。
             </div>
             <Select
               label="子账号(车友)"
               placeholder="选一个车友"
               selectedKeys={assignForm.userId ? [String(assignForm.userId)] : []}
-              onSelectionChange={(k) => {
-                const uid = Number(Array.from(k)[0]);
-                setAssignForm({ ...assignForm, userId: uid });
-                // 选中已分配过的车友时,立刻把他现成的订阅链接调出来(万一之前没复制上)
-                getUserSub(uid)
-                  .then((res: any) => setAssignSubToken(res.code === 0 ? res.data || "" : ""))
-                  .catch(() => setAssignSubToken(""));
-              }}
+              onSelectionChange={(k) => setAssignForm({ ...assignForm, userId: Number(Array.from(k)[0]) })}
             >
               {users.map((u) => (<SelectItem key={u.id}>{u.user}</SelectItem>))}
             </Select>
@@ -271,32 +259,10 @@ export default function InboundPage() {
               value={assignForm.flowGb ?? ""}
               onChange={(e) => setAssignForm({ ...assignForm, flowGb: e.target.value ? Number(e.target.value) : null })}
             />
-            {assignSubToken && (
-              <div className="space-y-1">
-                <div className="text-xs text-success">🔗 订阅链接(发给车友,含这台机器全部协议):</div>
-                <Textarea
-                  readOnly
-                  value={subUrl(assignSubToken)}
-                  minRows={2}
-                  onClick={(e: any) => { if (e.target?.select) e.target.select(); }}
-                />
-                <Button
-                  size="sm"
-                  color="primary"
-                  onPress={async () => {
-                    (await copyTextToClipboard(subUrl(assignSubToken)))
-                      ? toast.success("已复制订阅链接")
-                      : toast.error("复制失败,点框内已自动全选,按 Ctrl+C");
-                  }}
-                >
-                  复制订阅链接
-                </Button>
-              </div>
-            )}
           </ModalBody>
           <ModalFooter>
             <Button variant="light" onPress={() => setAssignOpen(false)}>关闭</Button>
-            <Button color="primary" isLoading={assignLoading} onPress={handleNodeAssign}>分配并出订阅</Button>
+            <Button color="primary" isLoading={assignLoading} onPress={handleNodeAssign}>分配</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
