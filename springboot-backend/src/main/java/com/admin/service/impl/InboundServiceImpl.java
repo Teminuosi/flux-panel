@@ -275,17 +275,8 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             userMapper.updateById(user);
         }
 
-        // 5. 存 inbound_user(带该用户的订阅 token:一个用户所有协议共用一个,已有则复用)
-        String subToken = null;
-        for (InboundUser e : inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("user_id", user.getId()))) {
-            if (e.getSubToken() != null && !e.getSubToken().isEmpty()) {
-                subToken = e.getSubToken();
-                break;
-            }
-        }
-        if (subToken == null) {
-            subToken = UUID.randomUUID().toString().replace("-", "");
-        }
+        // 5. 存 inbound_user(带该用户的订阅 token:一个用户所有协议共用一个,回填给旧协议)
+        String subToken = getOrCreateUserSubToken(user.getId());
 
         InboundUser iu = new InboundUser();
         iu.setInboundId(in.getId());
@@ -378,12 +369,33 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         if (userId == null) {
             return "";
         }
-        for (InboundUser iu : inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("user_id", userId))) {
+        List<InboundUser> ius = inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("user_id", userId));
+        if (ius.isEmpty()) {
+            return ""; // 还没分配过协议 → 没有订阅
+        }
+        return getOrCreateUserSubToken(userId);
+    }
+
+    /** 取该用户的订阅 token;没有就生成一个,并回填给他所有入站用户(保证一个 token 覆盖全部协议) */
+    private String getOrCreateUserSubToken(Long userId) {
+        List<InboundUser> ius = inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("user_id", userId));
+        String token = null;
+        for (InboundUser iu : ius) {
             if (iu.getSubToken() != null && !iu.getSubToken().isEmpty()) {
-                return iu.getSubToken();
+                token = iu.getSubToken();
+                break;
             }
         }
-        return "";
+        if (token == null) {
+            token = UUID.randomUUID().toString().replace("-", "");
+        }
+        for (InboundUser iu : ius) {
+            if (!token.equals(iu.getSubToken())) {
+                iu.setSubToken(token);
+                inboundUserMapper.updateById(iu);
+            }
+        }
+        return token;
     }
 
     @Override
