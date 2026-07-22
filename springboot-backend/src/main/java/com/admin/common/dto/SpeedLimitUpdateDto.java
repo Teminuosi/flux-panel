@@ -18,10 +18,9 @@ public class SpeedLimitUpdateDto {
     @Min(value = 1, message = "速度限制必须大于0")
     private Integer speed;
 
-    @NotNull(message = "隧道ID不能为空")
+    /** 隧道可选:协议限速留空即可 */
     private Long tunnelId;
 
-    @NotBlank(message = "隧道名称不能为空")
     private String tunnelName;
 
     /** 限速模式:0=共享 1=每连接 2=每客户端IP(默认0) */

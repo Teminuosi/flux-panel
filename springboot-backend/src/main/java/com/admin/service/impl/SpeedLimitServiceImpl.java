@@ -147,19 +147,24 @@ public class SpeedLimitServiceImpl extends ServiceImpl<SpeedLimitMapper, SpeedLi
             return R.err(ERROR_SPEED_LIMIT_NOT_FOUND);
         }
 
-        // 2. 验证隧道
-        TunnelValidationResult tunnelValidation = validateTunnelWithResult(speedLimitUpdateDto.getTunnelId(), speedLimitUpdateDto.getTunnelName());
-        if (tunnelValidation.isHasError()) {
-            return R.err(tunnelValidation.getErrorMessage());
+        // 2. 隧道可选:填了才验证 + 更新该隧道节点的限速器;协议限速规则(无隧道)只改 DB
+        TunnelValidationResult tunnelValidation = null;
+        if (speedLimitUpdateDto.getTunnelId() != null) {
+            tunnelValidation = validateTunnelWithResult(speedLimitUpdateDto.getTunnelId(), speedLimitUpdateDto.getTunnelName());
+            if (tunnelValidation.isHasError()) {
+                return R.err(tunnelValidation.getErrorMessage());
+            }
         }
 
         // 3. 更新限速规则数据
         updateSpeedLimitEntity(speedLimitUpdateDto, speedLimit);
 
-        // 4. 调用Gost API更新限速器
-        R gostResult = updateGostLimiter(speedLimit, tunnelValidation.getTunnel());
-        if (gostResult.getCode() != 0) {
-            return gostResult;
+        // 4. 有隧道才推到该隧道节点;无隧道的协议限速规则,已分配节点上的限速器下次分配时会被 UpdateLimiters 刷新
+        if (tunnelValidation != null) {
+            R gostResult = updateGostLimiter(speedLimit, tunnelValidation.getTunnel());
+            if (gostResult.getCode() != 0) {
+                return gostResult;
+            }
         }
 
         // 5. 保存更新
