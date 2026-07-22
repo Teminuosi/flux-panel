@@ -258,9 +258,11 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         String uuid = UUID.randomUUID().toString();
         String password = UUID.randomUUID().toString().replace("-", "");
 
-        // 2.5 若选了限速规则,先把限速器下发到协议节点(规则不用绑隧道,转发才能引用到它)
+        // 2.5 若选了限速规则,下发【车友专属】限速器(mode=0 服务级 `$`,TCP+UDP 都限、车友间独立)
+        Integer userLimiter = null;
         if (dto.getSpeedId() != null) {
-            R lr = speedLimitService.ensureLimiterOnNode(dto.getSpeedId(), node.getId());
+            userLimiter = perUserLimiterName(user.getId());
+            R lr = speedLimitService.pushUserLimiter(dto.getSpeedId(), userLimiter.longValue(), node.getId());
             if (lr.getCode() != 0) {
                 return R.err("下发限速器失败:" + lr.getMsg());
             }
@@ -272,7 +274,7 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         fdto.setTunnelId(tunnel.getId().intValue());
         fdto.setRemoteAddr("127.0.0.1:" + in.getListenPort());
         fdto.setStrategy("fifo");
-        fdto.setSpeedId(dto.getSpeedId());
+        fdto.setSpeedId(userLimiter); // 转发引用车友专属限速器
         fdto.setExpTime(dto.getExpTime());
         R fr = createForwardAutoPort(fdto, user, node.getId()); // 端口被占自动上移
         if (fr.getCode() != 0 || fr.getData() == null) {
@@ -332,7 +334,10 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             return R.err("这台机器还没有协议,先去「一键添加」");
         }
         String subToken = getOrCreateUserSubToken(user.getId());
+        // 车友专属限速器(每车友唯一;每节点只推一次,该机所有协议共享;TCP+UDP 都靠服务级 `$` 限住、车友间独立)
+        Integer userLimiter = (dto.getSpeedId() != null) ? perUserLimiterName(user.getId()) : null;
         java.util.Set<Long> affectedNodes = new java.util.HashSet<>();
+        java.util.Set<Long> limiterPushedNodes = new java.util.HashSet<>();
         int assigned = 0, skipped = 0;
         String firstError = null;
         for (Inbound in : inbounds) {
@@ -350,7 +355,17 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
                 skipped++;
                 continue;
             }
-            R r = assignOneNoPush(in, node, user, dto.getSpeedId(), dto.getExpTime(), subToken);
+            // 该节点上这个车友的限速器只推一次,后面这台机器的所有协议共享它(避免每协议重推破坏共享)
+            if (userLimiter != null && !limiterPushedNodes.contains(node.getId())) {
+                R lr = speedLimitService.pushUserLimiter(dto.getSpeedId(), userLimiter.longValue(), node.getId());
+                if (lr.getCode() != 0) {
+                    if (firstError == null) firstError = "下发限速器失败:" + lr.getMsg();
+                    skipped++;
+                    continue;
+                }
+                limiterPushedNodes.add(node.getId());
+            }
+            R r = assignOneNoPush(in, node, user, userLimiter, dto.getExpTime(), subToken);
             if (r.getCode() != 0) {
                 if (firstError == null) firstError = r.getMsg();
                 skipped++;
@@ -387,17 +402,11 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         return R.ok(result);
     }
 
-    /** 给某用户在某入站上建凭证+转发,但不推 sing-box(批量分配时最后统一推) */
-    private R assignOneNoPush(Inbound in, Node node, User user, Integer speedId, Long expTime, String subToken) {
+    /** 给某用户在某入站上建凭证+转发,但不推 sing-box(批量分配时最后统一推)。limiterName=车友专属限速器名(调用方已推好) */
+    private R assignOneNoPush(Inbound in, Node node, User user, Integer limiterName, Long expTime, String subToken) {
         Tunnel tunnel = ensurePortForwardTunnel(node.getId());
         if (tunnel == null) {
             return R.err("创建入站转发隧道失败");
-        }
-        if (speedId != null) {
-            R lr = speedLimitService.ensureLimiterOnNode(speedId, node.getId());
-            if (lr.getCode() != 0) {
-                return R.err("下发限速器失败:" + lr.getMsg());
-            }
         }
         String uuid = UUID.randomUUID().toString();
         String password = UUID.randomUUID().toString().replace("-", "");
@@ -406,7 +415,7 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         fdto.setTunnelId(tunnel.getId().intValue());
         fdto.setRemoteAddr("127.0.0.1:" + in.getListenPort());
         fdto.setStrategy("fifo");
-        fdto.setSpeedId(speedId);
+        fdto.setSpeedId(limiterName); // 转发引用车友专属限速器
         fdto.setExpTime(expTime);
         R fr = createForwardAutoPort(fdto, user, node.getId()); // 端口被占自动上移
         if (fr.getCode() != 0 || fr.getData() == null) {
@@ -573,6 +582,14 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             }
         }
         return null;
+    }
+
+    /**
+     * 车友专属限速器名(每车友唯一)。避开规则 id 的小数字段(900000000 偏移),用于 gost 服务级 `$` 限速。
+     * gost 的 UDP 转发(Hy2/TUIC)只认 `$`、不认 per-IP;每车友独立一个限速器 → TCP+UDP 都限住、车友间互不影响。
+     */
+    private Integer perUserLimiterName(Long userId) {
+        return (int) (900000000L + userId);
     }
 
     /**

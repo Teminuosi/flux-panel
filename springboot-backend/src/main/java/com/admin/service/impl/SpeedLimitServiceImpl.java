@@ -312,6 +312,30 @@ public class SpeedLimitServiceImpl extends ServiceImpl<SpeedLimitMapper, SpeedLi
         return R.err(msg.isEmpty() ? "下发限速器失败" : msg);
     }
 
+    @Override
+    public R pushUserLimiter(Integer ruleId, Long limiterName, Long nodeId) {
+        if (ruleId == null || limiterName == null || nodeId == null) {
+            return R.ok();
+        }
+        SpeedLimit sl = this.getById(ruleId.longValue());
+        if (sl == null) {
+            return R.err("限速规则不存在");
+        }
+        String speedInMBps = convertBitsToMBps(sl.getSpeed());
+        // mode=0 → 只出一条 "$ <speed>MB <speed>MB"(服务级限速)。gost 的 UDP 转发只认这个 `$`,
+        // 每车友一个独立限速器,就能既限住 TCP+UDP、车友之间又互不影响(不依赖 per-IP)。
+        GostDto r = GostUtil.AddLimiters(nodeId, limiterName, speedInMBps, 0, null);
+        if (isGostOperationSuccess(r)) {
+            return R.ok();
+        }
+        String msg = (r != null && r.getMsg() != null) ? r.getMsg() : "";
+        if (msg.contains("already exists")) {
+            GostUtil.UpdateLimiters(nodeId, limiterName, speedInMBps, 0, null);
+            return R.ok();
+        }
+        return R.err(msg.isEmpty() ? "下发限速器失败" : msg);
+    }
+
     /**
      * 添加Gost限速器
      *

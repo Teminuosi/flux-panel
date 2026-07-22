@@ -48,4 +48,11 @@ public interface SpeedLimitService extends IService<SpeedLimit> {
      * 分配协议用户时按需把限速器推到协议节点,规则本身不用绑隧道)。
      */
     R ensureLimiterOnNode(Integer speedId, Long nodeId);
+
+    /**
+     * 合体面板专用:下发一个【车友专属】限速器(用 mode=0 的服务级 `$` 限速),取值来自规则 ruleId。
+     * 限速器名 = limiterName(每车友唯一)。用 `$` 是因为 gost 的 UDP 转发(Hy2/TUIC)只认服务级 `$`、
+     * 不认 per-IP;每车友独立一个限速器 → 各自限速、TCP+UDP 都限住、车友间互不影响。
+     */
+    R pushUserLimiter(Integer ruleId, Long limiterName, Long nodeId);
 }
