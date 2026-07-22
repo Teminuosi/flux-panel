@@ -793,6 +793,7 @@ export default function UserPage() {
                 min="1"
                 max="99999"
                 isRequired
+                description="该用户最多能占多少条转发。合体面板里每分配 1 个协议占 1 条,想给他多协议就调大"
               />
               <Select
                 label="流量重置日期"

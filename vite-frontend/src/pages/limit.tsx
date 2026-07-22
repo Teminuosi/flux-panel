@@ -381,6 +381,7 @@ export default function LimitPage() {
                       isInvalid={!!errors.speed}
                       errorMessage={errors.speed}
                       variant="bordered"
+                      description="Mbps=兆比特/秒(和宽带同单位)。实际下载 MB/s = 此值 ÷ 8,如 5 Mbps ≈ 0.6 MB/s"
                       endContent={
                         <div className="pointer-events-none flex items-center">
                           <span className="text-default-400 text-small">Mbps</span>
@@ -411,7 +412,7 @@ export default function LimitPage() {
                       value={(form.total ?? 0).toString()}
                       onChange={(e) => setForm(prev => ({ ...prev, total: parseInt(e.target.value) || 0 }))}
                       variant="bordered"
-                      description="整条限速器总带宽上限,与上面每IP/每连接叠加,防机房限流。0=不限"
+                      description="整条限速器总带宽上限(Mbps,÷8=MB/s),与上面每IP/每连接叠加,防机房限流。0=不限。想让单人严格封顶,把它设成和上面速度一样"
                       endContent={
                         <div className="pointer-events-none flex items-center">
                           <span className="text-default-400 text-small">Mbps</span>
