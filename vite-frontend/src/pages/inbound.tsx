@@ -307,7 +307,7 @@ export default function InboundPage() {
           <ModalHeader>⚡ 一键搭建整机协议</ModalHeader>
           <ModalBody className="space-y-3">
             <div className="text-sm text-default-500">
-              在选中的机器上一键建好全部协议:<b>VLESS-Reality、Trojan-Reality、VMess、Shadowsocks、Hysteria2、TUIC、AnyTLS</b>(端口、密钥、自签证书全自动;端口被占自动上移)。建好后就是一张机器卡,点「分配用户」出订阅即可。
+              在选中的机器上一键建好全部协议:<b>VLESS-Reality、Trojan-Reality、VMess、Hysteria2、TUIC、AnyTLS</b>(端口、密钥、自签证书全自动;端口被占自动上移)。建好后就是一张机器卡,点「分配用户」出订阅即可。
             </div>
             <Select
               label="机器"
@@ -349,7 +349,6 @@ export default function InboundPage() {
               <SelectItem key="vless">VLESS-Reality(无域名,推荐)</SelectItem>
               <SelectItem key="trojan">Trojan-Reality(无域名)</SelectItem>
               <SelectItem key="vmess">VMess(无域名,兼容老客户端)</SelectItem>
-              <SelectItem key="shadowsocks">Shadowsocks-2022(简单稳)</SelectItem>
               <SelectItem key="hysteria2">Hysteria2(QUIC,快,自签证书)</SelectItem>
               <SelectItem key="tuic">TUIC(QUIC,自签证书)</SelectItem>
               <SelectItem key="anytls">AnyTLS(自签证书)</SelectItem>

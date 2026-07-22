@@ -157,8 +157,8 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         if (node == null) {
             return R.err("节点不存在");
         }
-        // 支持的协议一键全建(reality 类默认借 www.apple.com)
-        String[] protocols = {"vless", "trojan", "vmess", "shadowsocks", "hysteria2", "tuic", "anytls"};
+        // 支持的协议一键全建(reality 类默认借 www.apple.com)。SS 用不了,已去掉。
+        String[] protocols = {"vless", "trojan", "vmess", "hysteria2", "tuic", "anytls"};
         List<Object> created = new java.util.ArrayList<>();
         for (String p : protocols) {
             InboundDto dto = new InboundDto();
