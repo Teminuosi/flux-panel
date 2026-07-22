@@ -236,6 +236,18 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             return R.err("节点不存在");
         }
 
+        // 0. 查重:已给这个用户分过这个协议 → 直接返回现有链接 + 订阅,不重复建(避免重复占端口/转发)
+        InboundUser existed = inboundUserMapper.selectOne(new QueryWrapper<InboundUser>()
+                .eq("inbound_id", in.getId()).eq("user_id", user.getId()).last("limit 1"));
+        if (existed != null) {
+            Forward f = existed.getGostForwardId() != null ? forwardMapper.selectById(existed.getGostForwardId()) : null;
+            JSONObject result = new JSONObject();
+            result.put("inboundUserId", existed.getId());
+            result.put("link", f != null ? buildClientLink(in, existed, node, f) : "");
+            result.put("subToken", getOrCreateUserSubToken(user.getId()));
+            return R.ok(result);
+        }
+
         // 1. 确保该节点有一条端口转发隧道(入口机=该节点)
         Tunnel tunnel = ensurePortForwardTunnel(node.getId());
         if (tunnel == null) {

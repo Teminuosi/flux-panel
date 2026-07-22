@@ -46,8 +46,10 @@ import {
   removeUserTunnel,
   updateUserTunnel,
   getSpeedLimitList,
-  resetUserFlow
+  resetUserFlow,
+  getUserSub
 } from '@/api';
+import { copyTextToClipboard } from '@/utils/clipboard';
 import { SearchIcon, EditIcon, DeleteIcon, UserIcon, SettingsIcon } from '@/components/icons';
 import { parseDate } from "@internationalized/date";
 
@@ -164,6 +166,27 @@ export default function UserPage() {
 
   // 重置隧道流量确认相关状态
   const { isOpen: isResetTunnelFlowModalOpen, onOpen: onResetTunnelFlowModalOpen, onClose: onResetTunnelFlowModalClose } = useDisclosure();
+
+  // 订阅链接模态框(合体面板:该车友所有协议的订阅 URL)
+  const { isOpen: isSubModalOpen, onOpen: onSubModalOpen, onClose: onSubModalClose } = useDisclosure();
+  const [subUrlValue, setSubUrlValue] = useState<string>('');
+  const [subUserName, setSubUserName] = useState<string>('');
+
+  const handleShowSub = async (user: User) => {
+    try {
+      const res = await getUserSub(user.id);
+      const token = res.code === 0 ? res.data : '';
+      if (!token) {
+        toast.error('该用户还没分配任何协议,先去协议管理分配');
+        return;
+      }
+      setSubUserName(user.user);
+      setSubUrlValue(`${window.location.origin}/api/v1/open_api/sub?token=${token}`);
+      onSubModalOpen();
+    } catch (e) {
+      toast.error('获取订阅链接失败');
+    }
+  };
   const [tunnelToReset, setTunnelToReset] = useState<UserTunnel | null>(null);
   const [resetTunnelFlowLoading, setResetTunnelFlowLoading] = useState(false);
 
@@ -730,6 +753,19 @@ export default function UserPage() {
                         startContent={<DeleteIcon className="w-3 h-3" />}
                       >
                         删除
+                      </Button>
+                    </div>
+
+                    {/* 第三行:订阅链接(合体面板:该车友所有协议的订阅) */}
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        color="secondary"
+                        onPress={() => handleShowSub(user)}
+                        className="flex-1 min-h-8"
+                      >
+                        🔗 订阅链接
                       </Button>
                     </div>
                   </div>
@@ -1448,7 +1484,37 @@ export default function UserPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* 订阅链接(合体面板:该车友所有协议的订阅 URL) */}
+      <Modal isOpen={isSubModalOpen} onClose={onSubModalClose} size="2xl" backdrop="blur" placement="center">
+        <ModalContent>
+          <ModalHeader>🔗 {subUserName} 的订阅链接</ModalHeader>
+          <ModalBody>
+            <div className="text-small text-default-500">
+              发这条给车友:v2rayN → 订阅 → 添加 → 粘贴 → 更新订阅,他的全部协议自动出现、加新协议自动更新。
+            </div>
+            <Input
+              readOnly
+              value={subUrlValue}
+              onClick={(e: any) => { if (e.target?.select) e.target.select(); }}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={onSubModalClose}>关闭</Button>
+            <Button
+              color="primary"
+              onPress={async () => {
+                (await copyTextToClipboard(subUrlValue))
+                  ? toast.success('已复制订阅链接')
+                  : toast.error('复制失败,点框内已自动全选,按 Ctrl+C');
+              }}
+            >
+              复制
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
       </div>
-    
+
   );
 } 

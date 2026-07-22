@@ -21,10 +21,19 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
     const ta = document.createElement("textarea");
     ta.value = text;
     ta.setAttribute("readonly", "");
+    // 放在视口内、极小、透明:opacity:0 / 屏外(-9999px)在部分浏览器会让 execCommand copy 失败,
+    // 放在视口左上角一个 2em 的透明框更可靠。
     ta.style.position = "fixed";
     ta.style.top = "0";
-    ta.style.left = "-9999px";
-    ta.style.opacity = "0";
+    ta.style.left = "0";
+    ta.style.width = "2em";
+    ta.style.height = "2em";
+    ta.style.padding = "0";
+    ta.style.border = "none";
+    ta.style.outline = "none";
+    ta.style.boxShadow = "none";
+    ta.style.background = "transparent";
+    ta.style.color = "transparent";
     document.body.appendChild(ta);
     ta.focus();
     ta.select();
