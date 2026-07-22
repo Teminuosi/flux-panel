@@ -60,3 +60,9 @@ CREATE TABLE IF NOT EXISTS `inbound_user` (
   KEY `idx_iu_inbound` (`inbound_id`),
   KEY `idx_iu_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------
+-- 4) speed_limit：tunnel_id 改为可空(合体面板协议限速不绑隧道,
+--    分配协议用户时按需把限速器推到协议节点)。重复执行无害。
+-- ------------------------------------------------------------
+ALTER TABLE `speed_limit` MODIFY COLUMN `tunnel_id` bigint(20) NULL DEFAULT NULL;
