@@ -10,11 +10,14 @@ import javax.validation.constraints.NotNull;
 @Data
 public class InboundUserDto {
 
-    @NotNull(message = "入站不能为空")
+    /** 单入站分配时用(assign);机器卡整机分配(assign-all)可不传 */
     private Long inboundId;
 
     @NotNull(message = "用户不能为空")
     private Long userId;
+
+    /** 机器卡整机分配:只分配该节点(机器)上的所有协议;不传=所有节点 */
+    private Long nodeId;
 
     /** 限速规则ID(可空=不限速) */
     private Integer speedId;

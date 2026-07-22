@@ -270,12 +270,11 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         ForwardDto fdto = new ForwardDto();
         fdto.setName("inbound-" + in.getId() + "-user-" + user.getId());
         fdto.setTunnelId(tunnel.getId().intValue());
-        fdto.setInPort(allocateHybridPort(node.getId())); // 高段公网口(20000+),避开被占的低端口
         fdto.setRemoteAddr("127.0.0.1:" + in.getListenPort());
         fdto.setStrategy("fifo");
         fdto.setSpeedId(dto.getSpeedId());
         fdto.setExpTime(dto.getExpTime());
-        R fr = forwardService.createForwardForUser(fdto, user.getId().intValue(), user.getUser());
+        R fr = createForwardAutoPort(fdto, user, node.getId()); // 端口被占自动上移
         if (fr.getCode() != 0 || fr.getData() == null) {
             return R.err("建转发失败:" + fr.getMsg());
         }
@@ -325,9 +324,12 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         if (user == null) {
             return R.err("用户不存在");
         }
-        List<Inbound> inbounds = this.list();
+        // 机器卡分配:只分配该节点(机器)上的协议;不传 nodeId=所有节点
+        List<Inbound> inbounds = dto.getNodeId() != null
+                ? this.list(new QueryWrapper<Inbound>().eq("node_id", dto.getNodeId()))
+                : this.list();
         if (inbounds.isEmpty()) {
-            return R.err("还没有任何协议入站,先去「一键添加」");
+            return R.err("这台机器还没有协议,先去「一键添加」");
         }
         String subToken = getOrCreateUserSubToken(user.getId());
         java.util.Set<Long> affectedNodes = new java.util.HashSet<>();
@@ -367,6 +369,14 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             pushNodeSingbox(nid);
         }
         if (assigned == 0) {
+            if (firstError == null && skipped > 0) {
+                // 这台机器的协议这个车友全都分过了 → 不算失败,把现成订阅链接返回,方便重新拿链接
+                JSONObject r2 = new JSONObject();
+                r2.put("subToken", subToken);
+                r2.put("assigned", 0);
+                r2.put("skipped", skipped);
+                return R.ok(r2);
+            }
             return R.err(firstError != null ? ("分配失败:" + firstError) : "没有可分配的协议(可能都已分配过)");
         }
         JSONObject result = new JSONObject();
@@ -394,12 +404,11 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         ForwardDto fdto = new ForwardDto();
         fdto.setName("inbound-" + in.getId() + "-user-" + user.getId());
         fdto.setTunnelId(tunnel.getId().intValue());
-        fdto.setInPort(allocateHybridPort(node.getId()));
         fdto.setRemoteAddr("127.0.0.1:" + in.getListenPort());
         fdto.setStrategy("fifo");
         fdto.setSpeedId(speedId);
         fdto.setExpTime(expTime);
-        R fr = forwardService.createForwardForUser(fdto, user.getId().intValue(), user.getUser());
+        R fr = createForwardAutoPort(fdto, user, node.getId()); // 端口被占自动上移
         if (fr.getCode() != 0 || fr.getData() == null) {
             return R.err("建转发失败:" + fr.getMsg());
         }
@@ -564,6 +573,29 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             }
         }
         return null;
+    }
+
+    /**
+     * 建 hybrid 转发,端口被占(DB 里占了 / 或节点 OS 层被残留服务占了)就自动往上找下一个可用,直到成功。
+     * createForwardForUser 失败时会自己 removeById 清理,所以重试很干净。
+     */
+    private R createForwardAutoPort(ForwardDto fdto, User user, Long nodeId) {
+        Integer start = allocateHybridPort(nodeId);
+        int from = (start != null) ? start : 20000;
+        for (int p = from; p <= 39999; p++) {
+            fdto.setInPort(p);
+            R fr = forwardService.createForwardForUser(fdto, user.getId().intValue(), user.getUser());
+            if (fr.getCode() == 0 && fr.getData() != null) {
+                return fr;
+            }
+            String msg = fr.getMsg() == null ? "" : fr.getMsg();
+            // 端口被占(DB 已用 / OS 已用 / 不在范围)→ 换下一个;其他错误直接返回
+            if (msg.contains("already in use") || msg.contains("已被占用") || msg.contains("不在允许范围")) {
+                continue;
+            }
+            return fr;
+        }
+        return R.err("20000-39999 端口都被占,无法分配");
     }
 
     /** 确保节点有一条端口转发隧道(入口机=该节点),没有则建 */
