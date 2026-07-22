@@ -275,12 +275,24 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             userMapper.updateById(user);
         }
 
-        // 5. 存 inbound_user
+        // 5. 存 inbound_user(带该用户的订阅 token:一个用户所有协议共用一个,已有则复用)
+        String subToken = null;
+        for (InboundUser e : inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("user_id", user.getId()))) {
+            if (e.getSubToken() != null && !e.getSubToken().isEmpty()) {
+                subToken = e.getSubToken();
+                break;
+            }
+        }
+        if (subToken == null) {
+            subToken = UUID.randomUUID().toString().replace("-", "");
+        }
+
         InboundUser iu = new InboundUser();
         iu.setInboundId(in.getId());
         iu.setUserId(user.getId());
         iu.setUuid(uuid);
         iu.setPassword(password);
+        iu.setSubToken(subToken);
         iu.setGostForwardId(forward.getId());
         iu.setStatus(1);
         iu.setCreatedTime(System.currentTimeMillis());
@@ -292,43 +304,73 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
             return push;
         }
 
-        // 7. 出客户端链接(地址=该转发的公网口,被限速)
-        String remark = (in.getRemark() != null && !in.getRemark().isEmpty()) ? in.getRemark() : in.getTag();
-        String link;
-        switch (in.getProtocol()) {
-            case "shadowsocks": {
-                JSONObject cfg = JSON.parseObject(in.getConfigJson() == null ? "{}" : in.getConfigJson());
-                link = SingboxUtil.buildShadowsocksLink(node.getServerIp(), forward.getInPort(),
-                        cfg.getString("method"), cfg.getString("password"), remark);
-                break;
-            }
-            case "vmess":
-                link = SingboxUtil.buildVmessLink(uuid, node.getServerIp(), forward.getInPort(), remark);
-                break;
-            case "trojan":
-                link = SingboxUtil.buildTrojanRealityLink(password, node.getServerIp(), forward.getInPort(),
-                        in.getSni(), in.getPublicKey(), in.getShortId(), remark);
-                break;
-            case "hysteria2":
-                link = SingboxUtil.buildHysteria2Link(password, node.getServerIp(), forward.getInPort(), in.getSni(), remark);
-                break;
-            case "tuic":
-                link = SingboxUtil.buildTuicLink(uuid, password, node.getServerIp(), forward.getInPort(), in.getSni(), remark);
-                break;
-            case "anytls":
-                link = SingboxUtil.buildAnyTlsLink(password, node.getServerIp(), forward.getInPort(), in.getSni(), remark);
-                break;
-            default: // vless
-                link = SingboxUtil.buildVlessRealityLink(uuid, node.getServerIp(), forward.getInPort(),
-                        in.getSni(), in.getPublicKey(), in.getShortId(), remark);
-        }
+        // 7. 出客户端链接(地址=该转发的公网口,被限速)+ 该用户的订阅 token
+        String link = buildClientLink(in, iu, node, forward);
 
         JSONObject result = new JSONObject();
         result.put("inboundUserId", iu.getId());
         result.put("uuid", uuid);
         result.put("port", forward.getInPort());
         result.put("link", link);
+        result.put("subToken", subToken);
         return R.ok(result);
+    }
+
+    /** 按协议为某个入站用户拼客户端链接(assignUser 与订阅共用) */
+    private String buildClientLink(Inbound in, InboundUser iu, Node node, Forward forward) {
+        String remark = (in.getRemark() != null && !in.getRemark().isEmpty()) ? in.getRemark() : in.getTag();
+        String uuid = iu.getUuid();
+        String password = iu.getPassword();
+        String ip = node.getServerIp();
+        Integer port = forward.getInPort();
+        switch (in.getProtocol() == null ? "" : in.getProtocol()) {
+            case "shadowsocks": {
+                JSONObject cfg = JSON.parseObject(in.getConfigJson() == null ? "{}" : in.getConfigJson());
+                return SingboxUtil.buildShadowsocksLink(ip, port, cfg.getString("method"), cfg.getString("password"), remark);
+            }
+            case "vmess":
+                return SingboxUtil.buildVmessLink(uuid, ip, port, remark);
+            case "trojan":
+                return SingboxUtil.buildTrojanRealityLink(password, ip, port, in.getSni(), in.getPublicKey(), in.getShortId(), remark);
+            case "hysteria2":
+                return SingboxUtil.buildHysteria2Link(password, ip, port, in.getSni(), remark);
+            case "tuic":
+                return SingboxUtil.buildTuicLink(uuid, password, ip, port, in.getSni(), remark);
+            case "anytls":
+                return SingboxUtil.buildAnyTlsLink(password, ip, port, in.getSni(), remark);
+            default: // vless
+                return SingboxUtil.buildVlessRealityLink(uuid, ip, port, in.getSni(), in.getPublicKey(), in.getShortId(), remark);
+        }
+    }
+
+    @Override
+    public String buildSubscription(String token) {
+        if (token == null || token.isEmpty()) {
+            return "";
+        }
+        List<InboundUser> ius = inboundUserMapper.selectList(
+                new QueryWrapper<InboundUser>().eq("sub_token", token));
+        List<String> links = new java.util.ArrayList<>();
+        for (InboundUser iu : ius) {
+            if (iu.getStatus() != null && iu.getStatus() == 0) {
+                continue;
+            }
+            Inbound in = this.getById(iu.getInboundId());
+            if (in == null || iu.getGostForwardId() == null) {
+                continue;
+            }
+            Node node = nodeMapper.selectById(in.getNodeId());
+            Forward forward = forwardMapper.selectById(iu.getGostForwardId());
+            if (node == null || forward == null) {
+                continue;
+            }
+            String link = buildClientLink(in, iu, node, forward);
+            if (link != null && !link.isEmpty()) {
+                links.add(link);
+            }
+        }
+        String joined = String.join("\n", links);
+        return java.util.Base64.getEncoder().encodeToString(joined.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     @Override

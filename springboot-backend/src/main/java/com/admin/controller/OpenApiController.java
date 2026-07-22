@@ -8,8 +8,10 @@ import javax.servlet.http.HttpServletResponse;
 import com.admin.common.utils.Md5Util;
 import com.admin.entity.User;
 import com.admin.entity.UserTunnel;
+import com.admin.service.InboundService;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Objects;
@@ -18,6 +20,15 @@ import java.util.Objects;
 @CrossOrigin
 @RequestMapping("/api/v1/open_api")
 public class OpenApiController extends BaseController {
+
+    @Autowired
+    private InboundService inboundService;
+
+    /** 订阅:按 token 返回该用户所有协议链接的 base64(客户端订阅用,免登录) */
+    @GetMapping("/sub")
+    public String sub(@RequestParam("token") String token) {
+        return inboundService.buildSubscription(token);
+    }
 
     @LogAnnotation
     @GetMapping("/sub_store")

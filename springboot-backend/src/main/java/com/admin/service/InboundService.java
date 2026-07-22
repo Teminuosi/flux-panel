@@ -34,4 +34,7 @@ public interface InboundService extends IService<Inbound> {
 
     /** 取消某个入站用户 */
     R unassignUser(Long inboundUserId);
+
+    /** 按订阅 token 生成该用户所有协议链接的 base64 订阅内容(客户端订阅用) */
+    String buildSubscription(String token);
 }

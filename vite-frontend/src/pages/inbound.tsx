@@ -42,6 +42,8 @@ export default function InboundPage() {
   const [assignForm, setAssignForm] = useState<any>({ inboundId: null, userId: null, speedId: null, expDays: null, flowGb: null });
   const [assignLoading, setAssignLoading] = useState(false);
   const [resultLink, setResultLink] = useState<string>("");
+  const [resultSubToken, setResultSubToken] = useState<string>("");
+  const subUrl = (token: string) => `${window.location.origin}/api/v1/open_api/sub?token=${token}`;
 
   const loadAll = async () => {
     try {
@@ -120,6 +122,7 @@ export default function InboundPage() {
   const openAssign = (inbound: any) => {
     setAssignForm({ inboundId: inbound.id, userId: null, speedId: null, expDays: null, flowGb: null });
     setResultLink("");
+    setResultSubToken("");
     setAssignOpen(true);
   };
 
@@ -135,6 +138,7 @@ export default function InboundPage() {
       if (res.code === 0) {
         toast.success("已分配");
         setResultLink(res.data?.link || "");
+        setResultSubToken(res.data?.subToken || "");
       } else {
         toast.error(res.msg || "分配失败");
       }
@@ -375,18 +379,49 @@ export default function InboundPage() {
               onChange={(e) => setAssignForm({ ...assignForm, flowGb: e.target.value ? Number(e.target.value) : null })}
             />
             {resultLink && (
-              <div className="space-y-2">
-                <div className="text-xs text-success">✅ 客户端链接(发给车友):</div>
-                <Textarea readOnly value={resultLink} minRows={3} />
-                <Button
-                  size="sm"
-                  color="primary"
-                  onPress={async () => {
-                    (await copyTextToClipboard(resultLink)) ? toast.success("已复制") : toast.error("复制失败,手动选择");
-                  }}
-                >
-                  复制链接
-                </Button>
+              <div className="space-y-3">
+                {resultSubToken && (
+                  <div className="space-y-1">
+                    <div className="text-xs text-success">🔗 订阅链接(推荐发这个给车友:含他全部协议、永久有效、加新协议自动更新):</div>
+                    <Textarea
+                      readOnly
+                      value={subUrl(resultSubToken)}
+                      minRows={2}
+                      onClick={(e: any) => { if (e.target?.select) e.target.select(); }}
+                    />
+                    <Button
+                      size="sm"
+                      color="primary"
+                      onPress={async () => {
+                        (await copyTextToClipboard(subUrl(resultSubToken)))
+                          ? toast.success("已复制订阅链接")
+                          : toast.error("复制失败,点框内已自动全选,按 Ctrl+C");
+                      }}
+                    >
+                      复制订阅链接
+                    </Button>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <div className="text-xs text-default-500">单条协议链接(只发这一个协议时用):</div>
+                  <Textarea
+                    readOnly
+                    value={resultLink}
+                    minRows={2}
+                    onClick={(e: any) => { if (e.target?.select) e.target.select(); }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    onPress={async () => {
+                      (await copyTextToClipboard(resultLink))
+                        ? toast.success("已复制")
+                        : toast.error("复制失败,点框内已自动全选,按 Ctrl+C");
+                    }}
+                  >
+                    复制单条链接
+                  </Button>
+                </div>
               </div>
             )}
           </ModalBody>
