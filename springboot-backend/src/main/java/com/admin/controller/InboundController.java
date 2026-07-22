@@ -71,6 +71,13 @@ public class InboundController extends BaseController {
         return inboundService.assignUser(dto);
     }
 
+    /** 取某车友的订阅 token(选中用户时用,随时能看到订阅链接) */
+    @RequireRole
+    @PostMapping("/user-sub")
+    public R userSub(@RequestBody Map<String, Object> body) {
+        return R.ok(inboundService.getUserSubToken(Long.valueOf(String.valueOf(body.get("userId")))));
+    }
+
     @LogAnnotation
     @RequireRole
     @PostMapping("/unassign")

@@ -374,6 +374,19 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
     }
 
     @Override
+    public String getUserSubToken(Long userId) {
+        if (userId == null) {
+            return "";
+        }
+        for (InboundUser iu : inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("user_id", userId))) {
+            if (iu.getSubToken() != null && !iu.getSubToken().isEmpty()) {
+                return iu.getSubToken();
+            }
+        }
+        return "";
+    }
+
+    @Override
     public R unassignUser(Long inboundUserId) {
         InboundUser iu = inboundUserMapper.selectById(inboundUserId);
         if (iu == null) {

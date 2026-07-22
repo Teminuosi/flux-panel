@@ -13,6 +13,7 @@ import {
   deleteInbound,
   deleteInboundsByNode,
   assignInboundUser,
+  getUserSub,
   getNodeList,
   getAllUsers,
   getSpeedLimitList,
@@ -350,7 +351,14 @@ export default function InboundPage() {
               label="子账号(车友)"
               placeholder="选一个子账号"
               selectedKeys={assignForm.userId ? [String(assignForm.userId)] : []}
-              onSelectionChange={(k) => setAssignForm({ ...assignForm, userId: Number(Array.from(k)[0]) })}
+              onSelectionChange={(k) => {
+                const uid = Number(Array.from(k)[0]);
+                setAssignForm({ ...assignForm, userId: uid });
+                setResultLink("");
+                getUserSub(uid)
+                  .then((res: any) => setResultSubToken(res.code === 0 ? res.data || "" : ""))
+                  .catch(() => setResultSubToken(""));
+              }}
             >
               {users.map((u) => (
                 <SelectItem key={u.id}>{u.user}</SelectItem>
@@ -378,7 +386,7 @@ export default function InboundPage() {
               value={assignForm.flowGb ?? ""}
               onChange={(e) => setAssignForm({ ...assignForm, flowGb: e.target.value ? Number(e.target.value) : null })}
             />
-            {resultLink && (
+            {(resultSubToken || resultLink) && (
               <div className="space-y-3">
                 {resultSubToken && (
                   <div className="space-y-1">
@@ -402,26 +410,28 @@ export default function InboundPage() {
                     </Button>
                   </div>
                 )}
-                <div className="space-y-1">
-                  <div className="text-xs text-default-500">单条协议链接(只发这一个协议时用):</div>
-                  <Textarea
-                    readOnly
-                    value={resultLink}
-                    minRows={2}
-                    onClick={(e: any) => { if (e.target?.select) e.target.select(); }}
-                  />
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    onPress={async () => {
-                      (await copyTextToClipboard(resultLink))
-                        ? toast.success("已复制")
-                        : toast.error("复制失败,点框内已自动全选,按 Ctrl+C");
-                    }}
-                  >
-                    复制单条链接
-                  </Button>
-                </div>
+                {resultLink && (
+                  <div className="space-y-1">
+                    <div className="text-xs text-default-500">单条协议链接(只发这一个协议时用):</div>
+                    <Textarea
+                      readOnly
+                      value={resultLink}
+                      minRows={2}
+                      onClick={(e: any) => { if (e.target?.select) e.target.select(); }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      onPress={async () => {
+                        (await copyTextToClipboard(resultLink))
+                          ? toast.success("已复制")
+                          : toast.error("复制失败,点框内已自动全选,按 Ctrl+C");
+                      }}
+                    >
+                      复制单条链接
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </ModalBody>

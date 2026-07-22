@@ -37,4 +37,7 @@ public interface InboundService extends IService<Inbound> {
 
     /** 按订阅 token 生成该用户所有协议链接的 base64 订阅内容(客户端订阅用) */
     String buildSubscription(String token);
+
+    /** 取某用户的订阅 token(已分配过协议就有;用于随时查看订阅链接) */
+    String getUserSubToken(Long userId);
 }

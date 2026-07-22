@@ -80,6 +80,7 @@ export const deleteInbound = (id: number) => Network.post("/inbound/delete", { i
 export const deleteInboundsByNode = (nodeId: number) => Network.post("/inbound/delete-by-node", { nodeId });
 export const assignInboundUser = (data: any) => Network.post("/inbound/assign", data);
 export const unassignInboundUser = (id: number) => Network.post("/inbound/unassign", { id });
+export const getUserSub = (userId: number) => Network.post("/inbound/user-sub", { userId });
 
 // 修改密码接口
 export const updatePassword = (data: any) => Network.post("/user/updatePassword", data);

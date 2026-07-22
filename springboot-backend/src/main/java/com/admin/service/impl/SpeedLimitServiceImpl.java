@@ -295,7 +295,16 @@ public class SpeedLimitServiceImpl extends ServiceImpl<SpeedLimitMapper, SpeedLi
         String speedInMBps = convertBitsToMBps(sl.getSpeed());
         String totalInMBps = (sl.getTotal() != null && sl.getTotal() > 0) ? convertBitsToMBps(sl.getTotal()) : null;
         GostDto r = GostUtil.AddLimiters(nodeId, sl.getId(), speedInMBps, sl.getMode(), totalInMBps);
-        return isGostOperationSuccess(r) ? R.ok() : R.err(r != null ? r.getMsg() : "下发限速器失败");
+        if (isGostOperationSuccess(r)) {
+            return R.ok();
+        }
+        // 幂等:限速器已存在(之前分配过)→ 更新一遍保证是最新速度,当成功
+        String msg = (r != null && r.getMsg() != null) ? r.getMsg() : "";
+        if (msg.contains("already exists")) {
+            GostUtil.UpdateLimiters(nodeId, sl.getId(), speedInMBps, sl.getMode(), totalInMBps);
+            return R.ok();
+        }
+        return R.err(msg.isEmpty() ? "下发限速器失败" : msg);
     }
 
     /**
