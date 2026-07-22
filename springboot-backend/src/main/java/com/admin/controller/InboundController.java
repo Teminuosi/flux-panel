@@ -71,6 +71,14 @@ public class InboundController extends BaseController {
         return inboundService.assignUser(dto);
     }
 
+    /** 一键给车友分配全部协议 → 出订阅链接 */
+    @LogAnnotation
+    @RequireRole
+    @PostMapping("/assign-all")
+    public R assignAll(@RequestBody InboundUserDto dto) {
+        return inboundService.assignAllToUser(dto);
+    }
+
     /** 取某车友的订阅 token(选中用户时用,随时能看到订阅链接) */
     @RequireRole
     @PostMapping("/user-sub")

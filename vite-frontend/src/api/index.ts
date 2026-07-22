@@ -79,6 +79,7 @@ export const getInboundList = () => Network.post("/inbound/list");
 export const deleteInbound = (id: number) => Network.post("/inbound/delete", { id });
 export const deleteInboundsByNode = (nodeId: number) => Network.post("/inbound/delete-by-node", { nodeId });
 export const assignInboundUser = (data: any) => Network.post("/inbound/assign", data);
+export const assignAllToUser = (data: any) => Network.post("/inbound/assign-all", data);
 export const unassignInboundUser = (id: number) => Network.post("/inbound/unassign", { id });
 export const getUserSub = (userId: number) => Network.post("/inbound/user-sub", { userId });
 

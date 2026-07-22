@@ -319,6 +319,104 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         return R.ok(result);
     }
 
+    @Override
+    public R assignAllToUser(InboundUserDto dto) {
+        User user = userMapper.selectById(dto.getUserId());
+        if (user == null) {
+            return R.err("用户不存在");
+        }
+        List<Inbound> inbounds = this.list();
+        if (inbounds.isEmpty()) {
+            return R.err("还没有任何协议入站,先去「一键添加」");
+        }
+        String subToken = getOrCreateUserSubToken(user.getId());
+        java.util.Set<Long> affectedNodes = new java.util.HashSet<>();
+        int assigned = 0, skipped = 0;
+        String firstError = null;
+        for (Inbound in : inbounds) {
+            if (in.getStatus() != null && in.getStatus() == 0) {
+                continue;
+            }
+            InboundUser existed = inboundUserMapper.selectOne(new QueryWrapper<InboundUser>()
+                    .eq("inbound_id", in.getId()).eq("user_id", user.getId()).last("limit 1"));
+            if (existed != null) {
+                skipped++;
+                continue; // 已分过这个协议 → 跳过
+            }
+            Node node = nodeMapper.selectById(in.getNodeId());
+            if (node == null) {
+                skipped++;
+                continue;
+            }
+            R r = assignOneNoPush(in, node, user, dto.getSpeedId(), dto.getExpTime(), subToken);
+            if (r.getCode() != 0) {
+                if (firstError == null) firstError = r.getMsg();
+                skipped++;
+                continue;
+            }
+            affectedNodes.add(node.getId());
+            assigned++;
+        }
+        // 流量配额写到用户(一次)
+        if (dto.getFlow() != null) {
+            user.setFlow(dto.getFlow());
+            userMapper.updateById(user);
+        }
+        // 每个受影响的节点只推一次配置(避免反复重启)
+        for (Long nid : affectedNodes) {
+            pushNodeSingbox(nid);
+        }
+        if (assigned == 0) {
+            return R.err(firstError != null ? ("分配失败:" + firstError) : "没有可分配的协议(可能都已分配过)");
+        }
+        JSONObject result = new JSONObject();
+        result.put("subToken", subToken);
+        result.put("assigned", assigned);
+        result.put("skipped", skipped);
+        result.put("firstError", firstError);
+        return R.ok(result);
+    }
+
+    /** 给某用户在某入站上建凭证+转发,但不推 sing-box(批量分配时最后统一推) */
+    private R assignOneNoPush(Inbound in, Node node, User user, Integer speedId, Long expTime, String subToken) {
+        Tunnel tunnel = ensurePortForwardTunnel(node.getId());
+        if (tunnel == null) {
+            return R.err("创建入站转发隧道失败");
+        }
+        if (speedId != null) {
+            R lr = speedLimitService.ensureLimiterOnNode(speedId, node.getId());
+            if (lr.getCode() != 0) {
+                return R.err("下发限速器失败:" + lr.getMsg());
+            }
+        }
+        String uuid = UUID.randomUUID().toString();
+        String password = UUID.randomUUID().toString().replace("-", "");
+        ForwardDto fdto = new ForwardDto();
+        fdto.setName("inbound-" + in.getId() + "-user-" + user.getId());
+        fdto.setTunnelId(tunnel.getId().intValue());
+        fdto.setInPort(allocateHybridPort(node.getId()));
+        fdto.setRemoteAddr("127.0.0.1:" + in.getListenPort());
+        fdto.setStrategy("fifo");
+        fdto.setSpeedId(speedId);
+        fdto.setExpTime(expTime);
+        R fr = forwardService.createForwardForUser(fdto, user.getId().intValue(), user.getUser());
+        if (fr.getCode() != 0 || fr.getData() == null) {
+            return R.err("建转发失败:" + fr.getMsg());
+        }
+        Forward forward = (Forward) fr.getData();
+        InboundUser iu = new InboundUser();
+        iu.setInboundId(in.getId());
+        iu.setUserId(user.getId());
+        iu.setUuid(uuid);
+        iu.setPassword(password);
+        iu.setSubToken(subToken);
+        iu.setGostForwardId(forward.getId());
+        iu.setStatus(1);
+        iu.setCreatedTime(System.currentTimeMillis());
+        inboundUserMapper.insert(iu);
+        return R.ok(iu);
+    }
+
     /** 按协议为某个入站用户拼客户端链接(assignUser 与订阅共用) */
     private String buildClientLink(Inbound in, InboundUser iu, Node node, Forward forward) {
         String remark = (in.getRemark() != null && !in.getRemark().isEmpty()) ? in.getRemark() : in.getTag();

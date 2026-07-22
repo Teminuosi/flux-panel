@@ -13,6 +13,7 @@ import {
   deleteInbound,
   deleteInboundsByNode,
   assignInboundUser,
+  assignAllToUser,
   getUserSub,
   getNodeList,
   getAllUsers,
@@ -38,6 +39,11 @@ export default function InboundPage() {
   const [oneClickOpen, setOneClickOpen] = useState(false);
   const [oneClickNodeId, setOneClickNodeId] = useState<number | null>(null);
   const [oneClickLoading, setOneClickLoading] = useState(false);
+
+  const [assignAllOpen, setAssignAllOpen] = useState(false);
+  const [assignAllForm, setAssignAllForm] = useState<any>({ userId: null, speedId: null, expDays: null, flowGb: null });
+  const [assignAllLoading, setAssignAllLoading] = useState(false);
+  const [assignAllSubToken, setAssignAllSubToken] = useState<string>("");
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignForm, setAssignForm] = useState<any>({ inboundId: null, userId: null, speedId: null, expDays: null, flowGb: null });
@@ -120,6 +126,28 @@ export default function InboundPage() {
     setOneClickLoading(false);
   };
 
+  const handleAssignAll = async () => {
+    if (!assignAllForm.userId) return toast.error("请选择车友");
+    setAssignAllLoading(true);
+    try {
+      const payload: any = { userId: assignAllForm.userId };
+      if (assignAllForm.speedId) payload.speedId = assignAllForm.speedId;
+      if (assignAllForm.expDays) payload.expTime = Date.now() + assignAllForm.expDays * 86400000;
+      if (assignAllForm.flowGb) payload.flow = Math.round(assignAllForm.flowGb * 1024 * 1024 * 1024);
+      const res = await assignAllToUser(payload);
+      if (res.code === 0) {
+        toast.success(`已分配 ${res.data?.assigned ?? 0} 个协议` + (res.data?.skipped ? `,跳过 ${res.data.skipped}` : ""));
+        setAssignAllSubToken(res.data?.subToken || "");
+        loadAll();
+      } else {
+        toast.error(res.msg || "分配失败");
+      }
+    } catch (e) {
+      toast.error("分配失败");
+    }
+    setAssignAllLoading(false);
+  };
+
   const openAssign = (inbound: any) => {
     setAssignForm({ inboundId: inbound.id, userId: null, speedId: null, expDays: null, flowGb: null });
     setResultLink("");
@@ -175,6 +203,16 @@ export default function InboundPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold">协议管理</h1>
         <div className="flex gap-2">
+          <Button
+            color="success"
+            onPress={() => {
+              setAssignAllForm({ userId: null, speedId: null, expDays: null, flowGb: null });
+              setAssignAllSubToken("");
+              setAssignAllOpen(true);
+            }}
+          >
+            👤 分配用户(全部协议)
+          </Button>
           <Button
             color="secondary"
             variant="flat"
@@ -250,6 +288,72 @@ export default function InboundPage() {
           <div className="text-center text-default-400 py-8">还没有入站,点右上角「一键添加」或「新增入站」</div>
         )}
       </div>
+
+      {/* 分配用户(全部协议):一次把所有协议分给车友,出订阅链接 */}
+      <Modal isOpen={assignAllOpen} onClose={() => setAssignAllOpen(false)}>
+        <ModalContent>
+          <ModalHeader>👤 给车友分配全部协议</ModalHeader>
+          <ModalBody className="space-y-3">
+            <div className="text-sm text-default-500">
+              一次把<b>所有节点、所有协议</b>分给这个车友,出一条订阅链接。车友加这一条订阅,全部协议自动到手、以后加新协议自动更新。
+            </div>
+            <Select
+              label="子账号(车友)"
+              placeholder="选一个车友"
+              selectedKeys={assignAllForm.userId ? [String(assignAllForm.userId)] : []}
+              onSelectionChange={(k) => setAssignAllForm({ ...assignAllForm, userId: Number(Array.from(k)[0]) })}
+            >
+              {users.map((u) => (<SelectItem key={u.id}>{u.user}</SelectItem>))}
+            </Select>
+            <Select
+              label="限速规则(可空)"
+              placeholder="不限速"
+              selectedKeys={assignAllForm.speedId ? [String(assignAllForm.speedId)] : []}
+              onSelectionChange={(k) => setAssignAllForm({ ...assignAllForm, speedId: Number(Array.from(k)[0]) })}
+            >
+              {speedRules.map((s) => (<SelectItem key={s.id}>{s.name}</SelectItem>))}
+            </Select>
+            <Input
+              type="number"
+              label="到期(天,留空=永久)"
+              value={assignAllForm.expDays ?? ""}
+              onChange={(e) => setAssignAllForm({ ...assignAllForm, expDays: e.target.value ? Number(e.target.value) : null })}
+            />
+            <Input
+              type="number"
+              label="流量配额(GB,留空=不限)"
+              value={assignAllForm.flowGb ?? ""}
+              onChange={(e) => setAssignAllForm({ ...assignAllForm, flowGb: e.target.value ? Number(e.target.value) : null })}
+            />
+            {assignAllSubToken && (
+              <div className="space-y-1">
+                <div className="text-xs text-success">🔗 订阅链接(发给车友,含全部协议):</div>
+                <Textarea
+                  readOnly
+                  value={subUrl(assignAllSubToken)}
+                  minRows={2}
+                  onClick={(e: any) => { if (e.target?.select) e.target.select(); }}
+                />
+                <Button
+                  size="sm"
+                  color="primary"
+                  onPress={async () => {
+                    (await copyTextToClipboard(subUrl(assignAllSubToken)))
+                      ? toast.success("已复制")
+                      : toast.error("复制失败,点框内已自动全选,Ctrl+C");
+                  }}
+                >
+                  复制订阅链接
+                </Button>
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={() => setAssignAllOpen(false)}>关闭</Button>
+            <Button color="success" isLoading={assignAllLoading} onPress={handleAssignAll}>分配全部并出订阅</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* 一键添加:选节点,把所有支持的协议一键全建出来 */}
       <Modal isOpen={oneClickOpen} onClose={() => setOneClickOpen(false)}>

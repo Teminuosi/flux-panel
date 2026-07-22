@@ -32,6 +32,9 @@ public interface InboundService extends IService<Inbound> {
     /** 给入站分配子账号(生成 uuid + 建限速转发 + 重推 + 出客户端链接) */
     R assignUser(InboundUserDto dto);
 
+    /** 一键给用户分配全部协议(所有节点所有入站),返回订阅 token,车友一条订阅拿到全部协议 */
+    R assignAllToUser(InboundUserDto dto);
+
     /** 取消某个入站用户 */
     R unassignUser(Long inboundUserId);
 
