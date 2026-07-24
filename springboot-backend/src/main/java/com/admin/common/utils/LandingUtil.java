@@ -54,12 +54,13 @@ public class LandingUtil {
             if (lower.startsWith("hysteria2://") || lower.startsWith("hy2://")) {
                 return new Parsed("hysteria2", parseHysteria2(s));
             }
+            // 没协议头 → 当住宅 socks 的裸格式:IP:端口 / IP:端口:账号:密码 / 账号:密码@IP:端口
+            return new Parsed("socks5", parseBareSocks(s));
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("链接解析失败:" + e.getMessage());
         }
-        throw new IllegalArgumentException("不支持的链接类型(支持 socks5/ss/vmess/vless/trojan/hysteria2)");
     }
 
     // ---------- socks5://[user:pass@]host:port ----------
@@ -94,10 +95,60 @@ public class LandingUtil {
             hostPort = body;
         }
         String[] hp = splitHostPort(hostPort);
+        return buildSocks(hp[0], hp[1], user, pass);
+    }
+
+    /**
+     * 裸 socks 格式(住宅代理最常见给法,无协议头):
+     * IP:端口 / IP:端口:账号:密码 / 账号:密码@IP:端口
+     */
+    private static JSONObject parseBareSocks(String s) {
+        s = stripFragment(s).trim();
+        int q = s.indexOf('?');
+        if (q >= 0) s = s.substring(0, q);
+
+        String user = null, pass = null, host, port;
+        if (s.contains("@")) {
+            int at = s.lastIndexOf('@');
+            String ui = s.substring(0, at);
+            if (ui.contains(":")) {
+                String[] u = ui.split(":", 2);
+                user = u[0];
+                pass = u[1];
+            } else {
+                user = ui;
+            }
+            String[] hp = splitHostPort(s.substring(at + 1));
+            host = hp[0];
+            port = hp[1];
+        } else {
+            String[] p = s.split(":", 4); // IP:端口[:账号:密码](密码里的冒号保留在最后一段)
+            if (p.length < 2) {
+                throw new IllegalArgumentException(
+                        "落地链接不认识。住宅 socks 用 IP:端口 或 IP:端口:账号:密码;协议节点用带头的 socks5:// ss:// vmess:// vless:// trojan:// hysteria2://");
+            }
+            host = p[0];
+            port = p[1];
+            if (p.length >= 4) {
+                user = p[2];
+                pass = p[3];
+            } else if (p.length == 3) {
+                user = p[2];
+            }
+        }
+        try {
+            Integer.parseInt(port.trim());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("落地链接的端口不对。住宅 socks 用 IP:端口:账号:密码");
+        }
+        return buildSocks(host, port, user, pass);
+    }
+
+    private static JSONObject buildSocks(String host, String port, String user, String pass) {
         JSONObject o = new JSONObject();
         o.put("type", "socks");
-        o.put("server", hp[0]);
-        o.put("server_port", Integer.parseInt(hp[1]));
+        o.put("server", host);
+        o.put("server_port", Integer.parseInt(port.trim()));
         o.put("version", "5");
         if (user != null && !user.isEmpty()) {
             o.put("username", user);

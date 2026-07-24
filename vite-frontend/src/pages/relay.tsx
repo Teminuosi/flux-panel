@@ -327,12 +327,12 @@ export default function RelayPage() {
                 onChange={(e) => setLandingForm({ ...landingForm, name: e.target.value })}
               />
               <Textarea
-                label="分享链接"
-                placeholder="socks5://user:pass@ip:port  或  ss:// / vmess:// / vless:// / trojan:// / hysteria2://"
+                label="分享链接 / 落地地址"
+                placeholder="住宅socks: IP:端口:账号:密码    协议节点: ss:// / vmess:// / vless:// / trojan:// / hysteria2://"
                 minRows={2}
                 value={landingForm.link}
                 onChange={(e) => setLandingForm({ ...landingForm, link: e.target.value })}
-                description="住宅 socks 填 socks5://账号:密码@IP:端口;别人机场/你另一台机器的节点直接整条链接粘进来"
+                description="住宅 socks 直接填 IP:端口:账号:密码(也支持 socks5://账号:密码@IP:端口);机场/别人节点整条分享链接粘进来"
               />
               <Button color="primary" size="sm" isLoading={landingLoading} onPress={handleAddLanding}>解析并添加</Button>
             </div>
