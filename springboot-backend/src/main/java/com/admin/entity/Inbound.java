@@ -26,6 +26,9 @@ public class Inbound implements Serializable {
     /** 落在哪台节点 */
     private Long nodeId;
 
+    /** 落地ID:空=直连(本机出网),有=中转(该入站流量经该落地出网) */
+    private Long landingId;
+
     /** sing-box inbound tag */
     private String tag;
 

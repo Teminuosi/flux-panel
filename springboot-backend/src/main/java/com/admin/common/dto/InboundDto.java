@@ -25,5 +25,8 @@ public class InboundDto {
     /** Reality 握手目标站点,可空则用 sni */
     private String dest;
 
+    /** 落地ID:空=直连(协议管理),有=中转(该入站经此落地出网) */
+    private Long landingId;
+
     private String remark;
 }

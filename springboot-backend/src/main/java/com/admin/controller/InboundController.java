@@ -43,6 +43,16 @@ public class InboundController extends BaseController {
         return inboundService.oneClickCreate(Long.valueOf(String.valueOf(body.get("nodeId"))));
     }
 
+    /** 一键搭中转:在前置机上建全套协议,流量经指定落地出网 */
+    @LogAnnotation
+    @RequireRole
+    @PostMapping("/one-click-relay")
+    public R oneClickRelay(@RequestBody Map<String, Object> body) {
+        return inboundService.oneClickRelay(
+                Long.valueOf(String.valueOf(body.get("nodeId"))),
+                Long.valueOf(String.valueOf(body.get("landingId"))));
+    }
+
     @RequireRole
     @PostMapping("/list")
     public R list() {

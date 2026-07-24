@@ -78,6 +78,16 @@ export default function AdminLayout({
       adminOnly: true
     },
     {
+      path: '/relay',
+      label: '中转',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M8 4a1 1 0 00-1 1v1H4a1 1 0 000 2h9.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414l-3-3A1 1 0 0013 4.586V5a1 1 0 00-1-1H8zm4 12a1 1 0 001-1v-1h3a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3A1 1 0 007 15.414V15a1 1 0 001 1h4z" clipRule="evenodd" />
+        </svg>
+      ),
+      adminOnly: true
+    },
+    {
       path: '/tunnel',
       label: '隧道管理',
       icon: (

@@ -29,9 +29,10 @@ public class SingboxUtil {
      * @param mirror          国内 GitHub 镜像前缀(如 https://ghfast.top/),可为 null
      */
     public static GostDto SetSingboxConfig(Long nodeId, List<Inbound> inbounds,
-                                           Map<Long, List<InboundUser>> usersByInbound, String mirror) {
+                                           Map<Long, List<InboundUser>> usersByInbound,
+                                           Map<Long, String> landingOutbounds, String mirror) {
         JSONObject payload = new JSONObject();
-        payload.put("config", buildNodeConfig(inbounds, usersByInbound));
+        payload.put("config", buildNodeConfig(inbounds, usersByInbound, landingOutbounds));
         if (mirror != null && !mirror.isEmpty()) {
             payload.put("mirror", mirror);
         }
@@ -76,12 +77,26 @@ public class SingboxUtil {
                 + "&type=tcp#" + frag;
     }
 
-    /** 汇总一个节点的完整 sing-box 配置(log + 所有入站 + direct 出站) */
-    public static JSONObject buildNodeConfig(List<Inbound> inbounds, Map<Long, List<InboundUser>> usersByInbound) {
+    /**
+     * 汇总一个节点的完整 sing-box 配置(log + 所有入站 + direct 出站 + 中转的落地出站/路由)。
+     * landingOutbounds: 落地ID -> 该落地的 sing-box outbound JSON(不含 tag);入站带 landing_id 时按此路由出网。
+     */
+    public static JSONObject buildNodeConfig(List<Inbound> inbounds,
+                                             Map<Long, List<InboundUser>> usersByInbound,
+                                             Map<Long, String> landingOutbounds) {
         JSONObject log = new JSONObject();
         log.put("level", "warn");
 
         JSONArray inboundArr = new JSONArray();
+        JSONArray outbounds = new JSONArray();
+        JSONArray routeRules = new JSONArray();
+        java.util.Set<Long> addedLandings = new java.util.HashSet<>();
+
+        JSONObject direct = new JSONObject();
+        direct.put("type", "direct");
+        direct.put("tag", "direct");
+        outbounds.add(direct);
+
         if (inbounds != null) {
             for (Inbound in : inbounds) {
                 if (in.getStatus() != null && in.getStatus() == 0) {
@@ -89,22 +104,42 @@ public class SingboxUtil {
                 }
                 List<InboundUser> users = usersByInbound != null ? usersByInbound.get(in.getId()) : null;
                 JSONObject inboundJson = buildInbound(in, users);
-                if (inboundJson != null) {
-                    inboundArr.add(inboundJson);
+                if (inboundJson == null) {
+                    continue;
+                }
+                inboundArr.add(inboundJson);
+
+                // 中转:该入站有落地 → 加落地出站(去重)+ 路由(该入站 tag → 落地出站)
+                Long lid = in.getLandingId();
+                String obJson = (lid != null && landingOutbounds != null) ? landingOutbounds.get(lid) : null;
+                if (lid != null && obJson != null && !obJson.isEmpty()) {
+                    String tag = "landing-" + lid;
+                    if (addedLandings.add(lid)) {
+                        JSONObject ob = JSON.parseObject(obJson);
+                        ob.put("tag", tag);
+                        outbounds.add(ob);
+                    }
+                    JSONObject rule = new JSONObject();
+                    JSONArray inTags = new JSONArray();
+                    inTags.add(in.getTag());
+                    rule.put("inbound", inTags);
+                    rule.put("outbound", tag);
+                    routeRules.add(rule);
                 }
             }
         }
-
-        JSONArray outbounds = new JSONArray();
-        JSONObject direct = new JSONObject();
-        direct.put("type", "direct");
-        direct.put("tag", "direct");
-        outbounds.add(direct);
 
         JSONObject config = new JSONObject();
         config.put("log", log);
         config.put("inbounds", inboundArr);
         config.put("outbounds", outbounds);
+        // 有中转入站才写 route(纯直连节点保持原样,不影响协议管理)
+        if (!routeRules.isEmpty()) {
+            JSONObject route = new JSONObject();
+            route.put("rules", routeRules);
+            route.put("final", "direct");
+            config.put("route", route);
+        }
         return config;
     }
 

@@ -20,6 +20,9 @@ public interface InboundService extends IService<Inbound> {
     /** 一键添加:在指定节点上把所有支持的协议一键全建出来 */
     R oneClickCreate(Long nodeId);
 
+    /** 一键搭中转:在前置机上把全套协议建出来,流量经指定落地(landingId)出网 */
+    R oneClickRelay(Long nodeId, Long landingId);
+
     /** 入站列表 */
     R getInbounds();
 

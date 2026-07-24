@@ -11,6 +11,7 @@ import UserPage from "@/pages/user";
 import ProfilePage from "@/pages/profile";
 import LimitPage from "@/pages/limit";
 import InboundPage from "@/pages/inbound";
+import RelayPage from "@/pages/relay";
 import ConfigPage from "@/pages/config";
 import { SettingsPage } from "@/pages/settings";
 
@@ -179,6 +180,14 @@ function App() {
         element={
           <ProtectedRoute>
             <InboundPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/relay"
+        element={
+          <ProtectedRoute>
+            <RelayPage />
           </ProtectedRoute>
         }
       />

@@ -83,6 +83,12 @@ export const assignAllToUser = (data: any) => Network.post("/inbound/assign-all"
 export const unassignInboundUser = (id: number) => Network.post("/inbound/unassign", { id });
 export const getUserSub = (userId: number) => Network.post("/inbound/user-sub", { userId });
 
+// 中转(前置机协议 + 落地出口)
+export const oneClickRelay = (nodeId: number, landingId: number) => Network.post("/inbound/one-click-relay", { nodeId, landingId });
+export const createLanding = (data: any) => Network.post("/landing/create", data);
+export const getLandingList = () => Network.post("/landing/list");
+export const deleteLanding = (id: number) => Network.post("/landing/delete", { id });
+
 // 修改密码接口
 export const updatePassword = (data: any) => Network.post("/user/updatePassword", data);
 

@@ -65,6 +65,8 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
     private SpeedLimitService speedLimitService;
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private com.admin.mapper.LandingMapper landingMapper;
 
     @Override
     public R createInbound(InboundDto dto) {
@@ -100,6 +102,7 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         in.setListenPort(dto.getListenPort() != null ? dto.getListenPort() : allocateListenPort(node.getId()));
         in.setTag("in-" + node.getId() + "-" + in.getListenPort());
         in.setRemark(dto.getRemark());
+        in.setLandingId(dto.getLandingId()); // 空=直连,有=中转(经该落地出网)
         in.setStatus(1);
         in.setCreatedTime(System.currentTimeMillis());
         in.setUpdatedTime(System.currentTimeMillis());
@@ -177,6 +180,40 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         R push = pushNodeSingbox(nodeId);
         if (push.getCode() != 0) {
             return R.err("一键添加已入库,但下发 sing-box 配置失败:" + push.getMsg());
+        }
+        return R.ok(created);
+    }
+
+    @Override
+    public R oneClickRelay(Long nodeId, Long landingId) {
+        Node node = nodeMapper.selectById(nodeId);
+        if (node == null) {
+            return R.err("前置机不存在");
+        }
+        com.admin.entity.Landing landing = landingMapper.selectById(landingId);
+        if (landing == null) {
+            return R.err("落地不存在");
+        }
+        // 和一键搭协议一样建全套,只是每个入站带上 landing_id → 流量经该落地出网
+        String[] protocols = {"vless", "trojan", "vmess", "hysteria2", "tuic", "anytls"};
+        List<Object> created = new java.util.ArrayList<>();
+        for (String p : protocols) {
+            InboundDto dto = new InboundDto();
+            dto.setNodeId(nodeId);
+            dto.setProtocol(p);
+            dto.setLandingId(landingId);
+            if ("vless".equals(p) || "trojan".equals(p)) {
+                dto.setSni("www.apple.com");
+            }
+            R r = buildAndSaveInbound(dto);
+            if (r.getCode() != 0) {
+                return R.err("一键搭中转中断(" + p + "):" + r.getMsg() + "(已成功 " + created.size() + " 个)");
+            }
+            created.add(r.getData());
+        }
+        R push = pushNodeSingbox(nodeId);
+        if (push.getCode() != 0) {
+            return R.err("中转已入库,但下发 sing-box 配置失败:" + push.getMsg());
         }
         return R.ok(created);
     }
@@ -549,11 +586,20 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
     private R pushNodeSingbox(Long nodeId) {
         List<Inbound> inbounds = this.list(new QueryWrapper<Inbound>().eq("node_id", nodeId));
         Map<Long, List<InboundUser>> usersByInbound = new HashMap<>();
+        Map<Long, String> landingOutbounds = new HashMap<>();
         for (Inbound in : inbounds) {
             usersByInbound.put(in.getId(),
                     inboundUserMapper.selectList(new QueryWrapper<InboundUser>().eq("inbound_id", in.getId())));
+            // 中转:收集该入站用到的落地出站(去重,一条落地查一次)
+            Long lid = in.getLandingId();
+            if (lid != null && !landingOutbounds.containsKey(lid)) {
+                com.admin.entity.Landing landing = landingMapper.selectById(lid);
+                if (landing != null && landing.getOutboundJson() != null) {
+                    landingOutbounds.put(lid, landing.getOutboundJson());
+                }
+            }
         }
-        GostDto r = SingboxUtil.SetSingboxConfig(nodeId, inbounds, usersByInbound, null);
+        GostDto r = SingboxUtil.SetSingboxConfig(nodeId, inbounds, usersByInbound, landingOutbounds, null);
         if (r == null || !"OK".equals(r.getMsg())) {
             return R.err("下发 sing-box 配置失败:" + (r != null && r.getMsg() != null ? r.getMsg() : "节点无响应/超时"));
         }
