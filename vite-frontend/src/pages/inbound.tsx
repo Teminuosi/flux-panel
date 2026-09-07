@@ -19,6 +19,7 @@ import {
   getNodeList,
   getAllUsers,
   getSpeedLimitList,
+  pushNodeConfig,
 } from "@/api";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { SNI_PRESETS, DEFAULT_SNI, cleanSni } from "@/config/sni";
@@ -52,6 +53,7 @@ export default function InboundPage() {
 
   // 「我自己用」:一键开给当前管理员自己,完事直接把订阅链接弹出来
   const [selfLoading, setSelfLoading] = useState<number | null>(null);
+  const [pushing, setPushing] = useState<number | null>(null);
   const [selfSubUrl, setSelfSubUrl] = useState<string>("");
   const [selfOpen, setSelfOpen] = useState(false);
   // 订阅链接的域名部分永远是【面板地址】,几台机器点出来长得几乎一样,
@@ -187,6 +189,20 @@ export default function InboundPage() {
     setAssignLoading(false);
   };
 
+  // 机器上的 sing-box 掉了(转发诊断报「所有TCP连接尝试都失败」)时用这个。
+  // 下发的是库里的全量,点几次都一样,不会把已有协议弄乱。
+  const handlePushConfig = async (nodeId: number, nodeName: string) => {
+    setPushing(nodeId);
+    const res = await pushNodeConfig(nodeId);
+    setPushing(null);
+    if (res.code === 0) {
+      toast.success(`已把「${nodeName}」的协议配置重新下发一遍`);
+    } else {
+      // 这里的失败几乎都是节点掉线/超时,原样把后端的话给出来最有用
+      toast.error(res.msg || "下发失败");
+    }
+  };
+
   const handleClearNode = async (nodeId: number, nodeName: string) => {
     if (!window.confirm(`确定清空「${nodeName}」上的直连协议?(连带其转发/用户;中转协议不受影响)`)) return;
     const res = await deleteInboundsByNode(nodeId, false);
@@ -308,6 +324,14 @@ export default function InboundPage() {
                     onPress={() => handleAssignSelf(n.id, n.name)}
                   >
                     🔑 我自己用
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    isLoading={pushing === n.id}
+                    onPress={() => handlePushConfig(n.id, n.name)}
+                  >
+                    🔄 重推配置
                   </Button>
                   <Button size="sm" color="danger" variant="flat" onPress={() => handleClearNode(n.id, n.name)}>
                     清空该机

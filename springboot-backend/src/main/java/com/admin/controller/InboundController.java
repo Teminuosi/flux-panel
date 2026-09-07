@@ -80,6 +80,23 @@ public class InboundController extends BaseController {
         return inboundService.deleteInboundsByNode(Long.valueOf(String.valueOf(body.get("nodeId"))), relay, landingId);
     }
 
+    /**
+     * 把某台机器的 sing-box 配置按数据库重新下发一遍。
+     *
+     * 【为什么需要手动这一下】pushNodeSingbox 只在建/删入站、改落地时才跑,
+     * 平时没人碰。可节点那头的 sing-box 是会掉的 —— 进程崩了、机器重启没起来、
+     * 配置被手工动过,库里有这条入站,机器上却没在监听。
+     * 这时转发诊断报「所有TCP连接尝试都失败」,而管理员在面板上无事可做:
+     * 以前只能在那台机器上随便建一条协议再删掉,去蹭一次重推。
+     * 下发的内容就是库里的全量(SetSingboxConfig 整份覆盖),所以重复点没有副作用。
+     */
+    @LogAnnotation
+    @RequireRole
+    @PostMapping("/push-config")
+    public R pushConfig(@RequestBody Map<String, Object> body) {
+        return inboundService.pushNodeConfig(Long.valueOf(String.valueOf(body.get("nodeId"))));
+    }
+
     @LogAnnotation
     @RequireRole
     @PostMapping("/assign")

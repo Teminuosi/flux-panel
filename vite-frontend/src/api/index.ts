@@ -90,6 +90,8 @@ export const setLineStatus = (userId: number, nodeId: number, landingId: number 
 export const deleteLine = (userId: number, nodeId: number, landingId: number | null) =>
   Network.post("/inbound/line-delete", { userId, nodeId, landingId });
 export const getUserSub = (userId: number) => Network.post("/inbound/user-sub", { userId });
+// 按库里的全量重新下发这台机器的 sing-box 配置(整份覆盖,重复点没副作用)
+export const pushNodeConfig = (nodeId: number) => Network.post("/inbound/push-config", { nodeId });
 
 // 中转(前置机协议 + 落地出口):落地内联粘贴、测试、搭建
 export const oneClickRelay = (nodeId: number, link: string, name?: string, sni?: string) => Network.post("/inbound/one-click-relay", { nodeId, link, name, sni });
