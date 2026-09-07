@@ -4,7 +4,9 @@ import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Chip } from "@heroui/chip";
 import toast from "react-hot-toast";
-import { getMyLines, getUserPackageInfo } from "@/api";
+import { getMyLines, getUserPackageInfo, deleteLine } from "@/api";
+import { isAdmin } from "@/utils/auth";
+import { JwtUtil } from "@/utils/jwt";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { SubQrToggle } from "@/components/sub-qr";
 
@@ -201,6 +203,36 @@ export default function MySubPage() {
                       复制订阅链接
                     </Button>
                     <SubQrToggle url={url} />
+                    {/* 删除只给管理员看。这一页车友也在用,而删线路是不可逆的 ——
+                        端口会释放,以后要再用得管理员重新分配、重新发一遍链接。
+                        车友手滑点一下就得来找人重开,这个成本不该由界面制造。
+                        要收回别人的线路仍然走「用户管理」,那边还多一个可逆的「停用」。 */}
+                    {isAdmin() && (
+                      <>
+                        <div className="flex-1" />
+                        <Button
+                          size="sm"
+                          variant="light"
+                          color="danger"
+                          onPress={async () => {
+                            const myId = JwtUtil.getUserIdFromToken();
+                            if (myId == null) return toast.error("登录状态异常,刷新一下再试");
+                            if (!confirm(`彻底删除「${ln.nodeName}」这条线路?
+该线路下 ${ln.protocolCount} 个协议的分配和转发会一并删掉,端口释放。
+这一步不可逆,以后要再用得重新分配。`)) return;
+                            const res = await deleteLine(myId, ln.nodeId, ln.landingId ?? null);
+                            if (res.code === 0) {
+                              toast.success("已删掉这条线路");
+                              await load();
+                            } else {
+                              toast.error(res.msg || "删除失败");
+                            }
+                          }}
+                        >
+                          删除
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CardBody>
               </Card>
