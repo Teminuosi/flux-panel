@@ -177,6 +177,24 @@ public class InboundController extends BaseController {
                 body.get("status") == null ? null : Integer.valueOf(String.valueOf(body.get("status"))));
     }
 
+    /**
+     * 改一条线路的额度 / 到期 / 限速(续费)。字段传 null = 该项不改。
+     * 分配之后原来只能停用或取消,想加流量/续期得删了重分 —— 而重分会换
+     * UUID 和端口,车友手上的订阅当场作废。这个接口就是来堵这个坑的。
+     */
+    @LogAnnotation
+    @RequireRole
+    @PostMapping("/line-update")
+    public R lineUpdate(@RequestBody Map<String, Object> body) {
+        return inboundService.updateLine(
+                asLong(body.get("userId")),
+                asLong(body.get("nodeId")),
+                asLong(body.get("landingId")),
+                asLong(body.get("flow")),
+                asLong(body.get("expTime")),
+                body.get("speedId") == null ? null : Integer.valueOf(String.valueOf(body.get("speedId"))));
+    }
+
     /** 彻底收回某车友的一条线路(不可逆) */
     @LogAnnotation
     @RequireRole

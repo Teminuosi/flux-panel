@@ -47,6 +47,9 @@ public interface InboundService extends IService<Inbound> {
     /** 停用(status=0)/ 恢复(status=1)某车友的一条线路(机器 × 落地) */
     R setLineStatus(Long userId, Long nodeId, Long landingId, Integer status);
 
+    /** 改一条线路的额度 / 到期 / 限速(续费用;传 null 表示该项不改) */
+    R updateLine(Long userId, Long nodeId, Long landingId, Long flowGb, Long expTime, Integer speedId);
+
     /** 彻底删掉某车友的一条线路:分配记录 + 转发 + 线路本身,端口一并释放 */
     R deleteLine(Long userId, Long nodeId, Long landingId);
 

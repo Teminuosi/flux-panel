@@ -49,7 +49,8 @@ import {
   resetUserFlow,
   getUserLines,
   setLineStatus,
-  deleteLine
+  deleteLine,
+  updateLine
 } from '@/api';
 import { copyTextToClipboard } from '@/utils/clipboard';
 import { SubQrToggle } from '@/components/sub-qr';
@@ -1628,6 +1629,41 @@ export default function UserPage() {
                     {/* 收回这条线路的入口。停用是可逆的:UUID 和端口都留着,
                         恢复之后对方手上的订阅原样能用;删除会把端口也释放掉,
                         以后要再给他用就得重新分配、重新发链接。 */}
+                    {/* 续费:改额度/到期,不动 UUID 和端口 —— 车友不用重导订阅。
+                        这一页的线路行本身就在弹窗里,再套一层 Modal 很别扭,
+                        所以沿用这个文件已有的 confirm/prompt 风格。
+                        要连限速一起改,用客户端「车友」页那个完整表单。 */}
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      onPress={async () => {
+                        if (subUserId == null) return;
+                        const curFlow = ln.quotaGb ?? 0;
+                        const fRaw = prompt(`「${ln.nodeName}」流量额度(G,0=不限)\n已用的不会清零,这里改的是天花板`, String(curFlow));
+                        if (fRaw === null) return;
+                        const flow = Number(fRaw);
+                        if (!(flow >= 0)) { toast.error('流量要填数字'); return; }
+                        const leftDays = ln.lineExpTime ? Math.max(0, Math.ceil((ln.lineExpTime - Date.now()) / 86400000)) : 0;
+                        const dRaw = prompt('还有多少天到期(0=永久)\n从现在起算,不是往原到期上加', String(leftDays));
+                        if (dRaw === null) return;
+                        const days = Number(dRaw);
+                        if (!(days >= 0)) { toast.error('天数要填数字'); return; }
+                        const res = await updateLine(subUserId, ln.nodeId, ln.landingId ?? null, {
+                          flow, expTime: days > 0 ? Date.now() + days * 86400000 : 0,
+                        });
+                        if (res.code === 0) {
+                          // 后端会顺带判断改完还该不该停,如实转述 —— 别让人以为续了就一定活了
+                          const d: any = res.data || {};
+                          if (d.status === 0) toast.error(`改好了,但这条线仍是停用:${d.reason || '未达到恢复条件'}`);
+                          else toast.success(d.resumed ? '已续费,线路已恢复' : '已续费');
+                          await reloadSubLines(subUserId);
+                        } else {
+                          toast.error(res.msg || '续费失败');
+                        }
+                      }}
+                    >
+                      续费
+                    </Button>
                     <Button
                       size="sm"
                       variant="flat"

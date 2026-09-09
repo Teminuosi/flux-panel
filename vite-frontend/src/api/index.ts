@@ -89,6 +89,12 @@ export const setLineStatus = (userId: number, nodeId: number, landingId: number 
   Network.post("/inbound/line-status", { userId, nodeId, landingId, status });
 export const deleteLine = (userId: number, nodeId: number, landingId: number | null) =>
   Network.post("/inbound/line-delete", { userId, nodeId, landingId });
+// 续费:改这条线路的额度/到期/限速。字段给 null = 该项不动。
+// 不走「删了重分」是因为重分会换 UUID 和端口,车友手上的订阅会作废。
+export const updateLine = (
+  userId: number, nodeId: number, landingId: number | null,
+  patch: { flow?: number | null; expTime?: number | null; speedId?: number | null },
+) => Network.post("/inbound/line-update", { userId, nodeId, landingId, ...patch });
 export const getUserSub = (userId: number) => Network.post("/inbound/user-sub", { userId });
 // 按库里的全量重新下发这台机器的 sing-box 配置(整份覆盖,重复点没副作用)
 export const pushNodeConfig = (nodeId: number) => Network.post("/inbound/push-config", { nodeId });

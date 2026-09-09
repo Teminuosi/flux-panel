@@ -1201,6 +1201,137 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
      * 注意和「账号总闸」的区别:User.status 一关是这个人所有线路一起停,
      * 这里只动一条。
      */
+    /**
+     * 改一条线路的额度 / 到期 / 限速 —— 也就是「续费」。
+     *
+     * 【为什么非要单开一个】原来分配完就改不了了:界面上只有停用和取消,
+     * 想加流量或者续期只能删了重新分配,而重分会换 UUID 和端口,
+     * 车友手上的订阅当场作废,得重导一次。卖号的每个月都要续,
+     * 等于每次续费都把客户弄坏一次。
+     *
+     * 【三件事一件都不能少,少一件就是"界面改了、实际没生效"】
+     *   1. 线路记录的 flow / exp_time —— 订阅和 CheckExpiryAsync 看的是这个
+     *   2. 每条 gost 转发自己的 exp_time —— resumeForward 拿转发的到期做拦截,
+     *      不同步的话续了费也恢复不了(报「该转发已到期,无法恢复」)
+     *   3. 限速器要真下发到节点 —— limiter 挂在 gost 的服务上,只改库不推等于没限
+     *
+     * 【为什么必须自己把线路拉起来】CheckExpiryAsync 开头就是
+     * if (line.getStatus() == 0) continue —— 它只负责停,永远不会自己恢复;
+     * ResetFlowAsync 每月也只复活「跑满」那一批,到期的不管。
+     * 所以续费之后要不要活过来,只能在这里判、在这里做。
+     * 判据和 CheckExpiryAsync 逐字一致,免得两边对同一条线路给出相反结论。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public R updateLine(Long userId, Long nodeId, Long landingId, Long flowGb, Long expTime, Integer speedId) {
+        if (userId == null || nodeId == null) {
+            return R.err("参数不全");
+        }
+        InboundLine line = getLine(userId, nodeId, landingId);
+        if (line == null) {
+            return R.err("线路不存在");
+        }
+        List<InboundUser> ius = lineInboundUsers(userId, nodeId, landingId);
+        if (ius.isEmpty()) {
+            return R.err("这条线路下没有协议,先去「分配协议」");
+        }
+
+        // 1) 线路本身(null = 该项不改,方便前端只改其中一样)
+        if (flowGb != null) {
+            line.setFlow(flowGb);
+        }
+        if (expTime != null) {
+            line.setExpTime(expTime);
+        }
+
+        // 2) 限速:先把车友专属限速器下发到这台机器,再换到每条转发上。
+        //    车友专属而不是共享一个 —— gost 的 UDP 转发只认服务级限速器,
+        //    共用会互相挤(assignUser 里也是这么做的,保持一致)。
+        Integer limiter = null;
+        if (speedId != null) {
+            limiter = perUserLimiterName(userId);
+            R lr = speedLimitService.pushUserLimiter(speedId, limiter.longValue(), nodeId);
+            if (lr.getCode() != 0) {
+                return R.err("下发限速器失败:" + lr.getMsg());
+            }
+        }
+
+        List<Forward> forwards = new java.util.ArrayList<>();
+        for (InboundUser iu : ius) {
+            if (iu.getGostForwardId() == null) {
+                continue;
+            }
+            Forward f = forwardService.getById(iu.getGostForwardId());
+            if (f != null) {
+                forwards.add(f);
+            }
+        }
+
+        for (Forward f : forwards) {
+            boolean touched = false;
+            if (expTime != null) {
+                f.setExpTime(expTime);
+                touched = true;
+            }
+            if (speedId != null) {
+                f.setSpeedId(limiter);
+                touched = true;
+            }
+            if (touched) {
+                forwardService.updateById(f);
+                // 推到节点:限速换了要立刻生效,只写库的话面板显示改了、实际没限住
+                try {
+                    forwardService.updateForwardA(f);
+                } catch (Exception e) {
+                    // 节点掉线时不该让整笔续费失败 —— 额度和到期是面板侧判的,已经写进去了;
+                    // 限速下次 CheckGostConfigAsync 对账时会补上。
+                    log.warn("续费后推转发[" + f.getId() + "]到节点失败(额度/到期已生效): " + e.getMessage());
+                }
+            }
+        }
+
+        // 3) 改完之后这条线还该不该停 —— 判据抄 CheckExpiryAsync,别让两边打架
+        long now = System.currentTimeMillis();
+        boolean expired = line.getExpTime() != null && line.getExpTime() > 0 && line.getExpTime() <= now;
+        boolean depleted = false;
+        if (!expired && line.getFlow() != null && line.getFlow() > 0) {
+            long used = 0L;
+            for (Forward f : forwards) {
+                used += (f.getInFlow() == null ? 0L : f.getInFlow())
+                        + (f.getOutFlow() == null ? 0L : f.getOutFlow());
+            }
+            depleted = used >= line.getFlow() * (1024L * 1024L * 1024L);
+        }
+        boolean shouldRun = !expired && !depleted;
+
+        line.setStatus(shouldRun ? 1 : 0);
+        line.setUpdatedTime(now);
+        inboundLineMapper.updateById(line);
+
+        // 转发跟着线路走。注意顺序:上面已经把新的 exp_time 写进转发了,
+        // 否则 resumeForward 会拿旧的到期把恢复挡掉。
+        int touchedFwd = 0;
+        for (Forward f : forwards) {
+            boolean running = f.getStatus() != null && f.getStatus() != 0;
+            if (shouldRun && !running) {
+                forwardService.resumeForward(f.getId());
+                touchedFwd++;
+            } else if (!shouldRun && running) {
+                forwardService.pauseForward(f.getId());
+                touchedFwd++;
+            }
+        }
+
+        JSONObject data = new JSONObject();
+        data.put("status", line.getStatus());
+        data.put("flow", line.getFlow());
+        data.put("expTime", line.getExpTime());
+        // 前端拿这个决定提示词:续费之后是"已恢复"还是"改好了但仍是停用(还没到解封条件)"
+        data.put("resumed", shouldRun && touchedFwd > 0);
+        data.put("reason", shouldRun ? "" : (expired ? "已到期" : "流量已跑满"));
+        return R.ok(data);
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public R setLineStatus(Long userId, Long nodeId, Long landingId, Integer status) {
