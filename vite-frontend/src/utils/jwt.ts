@@ -22,9 +22,22 @@ function getPayloadFromToken(token: string): JWTPayload | null {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     
-    const encodedPayload = parts[1];
-    const decodedPayload = atob(encodedPayload);
-    return JSON.parse(decodedPayload) as JWTPayload;
+    // 后端签的是 URL-safe base64(JwtUtil:Base64.getUrlEncoder().withoutPadding()),
+    // 用 - 和 _;而 atob 只认标准表的 + 和 /,遇到就抛 InvalidCharacterError。
+    // 抛出来被下面 catch 掉返回 null → isTokenValid false → 路由守卫把人弹回登录页,
+    // 表现就是「提示登录成功却进不去,反复要求重新输账号密码」。
+    //
+    // 出不出现 - / _ 取决于 payload 的字节,所以是【某些账号永远登不上、
+    // 另一些一直正常】—— 非 ASCII 用户名特别容易中,因为 user 和 name 两个字段
+    // 都放了用户名,多字节内容翻倍。实测「三月站长」「站长abc」「测试管理员账号」
+    // 100% 登不上,而「三月」「管理员」「admin」正常。
+    //
+    // 所以先换回标准表、补齐 padding 再解;并且按 UTF-8 解码 ——
+    // atob 出来的是按字节的 latin1 串,直接用会把中文用户名变成乱码。
+    const std = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = std + '='.repeat((4 - (std.length % 4)) % 4);
+    const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder('utf-8').decode(bytes)) as JWTPayload;
   } catch (error) {
     return null;
   }
