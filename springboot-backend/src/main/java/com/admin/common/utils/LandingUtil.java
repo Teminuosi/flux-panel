@@ -36,6 +36,22 @@ public class LandingUtil {
         String s = link.trim();
         String lower = s.toLowerCase();
         try {
+            // naive 必须排在最前:它的串是 naive+https://…,含 "https" 字样,
+            // 放到后面会被裸 socks 那个兜底分支抢走,报一个莫名其妙的"端口不对"
+            if (lower.startsWith("naive+https://") || lower.startsWith("naive+http://")
+                    || lower.startsWith("naive://")) {
+                // 【为什么不支持】sing-box 的 naive 出站要 libcronet 这个原生库,
+                // 官方发行版不带。缺了它不是这条落地不通,而是 sing-box 初始化出站时
+                // 直接 FATAL、整个进程起不来 —— 那台机器上所有协议一起死。
+                // 实测:sing-box 1.13.12 check 报 "cronet: library not found",
+                // 且 network / protocol / insecure 都不是能绕开它的开关(逐个试过)。
+                // 所以宁可在这儿明确拒绝,也不能让它进库、进配置。
+                throw new IllegalArgumentException(
+                        "暂不支持 naive 落地:节点上的 sing-box 跑 naive 需要 libcronet 原生库,"
+                                + "缺了会导致整个 sing-box 起不来、这台机器上所有协议一起挂。"
+                                + "变通办法:在转发机上跑一个 naive 客户端,把它转成本地 socks5,"
+                                + "再把那个 socks5 地址填到这里。");
+            }
             if (lower.startsWith("socks5://") || lower.startsWith("socks://") || lower.startsWith("socks4://")) {
                 return new Parsed("socks5", parseSocks(s));
             }

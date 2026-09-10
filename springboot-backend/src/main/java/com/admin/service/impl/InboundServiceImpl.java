@@ -140,6 +140,24 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         } else if ("vmess".equals(protocol)) {
             // VMess(TCP,无 TLS,无域名):无需密钥,用户 assign 时发 uuid
             in.setSecurity("none");
+            // 传输层存进 configJson —— 那是现成的自由 JSON 列(shadowsocks 也用它),
+            // 加字段不用改表。只认 ws,其它值一律当默认 TCP。
+            if ("ws".equalsIgnoreCase(dto.getTransport())) {
+                JSONObject tcfg = new JSONObject();
+                tcfg.put("net", "ws");
+                // 路径留空就随机生成:固定成 / 的 ws 节点是被主动探测扫出来的头号特征
+                String path = dto.getWsPath();
+                if (path == null || path.trim().isEmpty()) {
+                    path = "/" + UUID.randomUUID().toString().substring(0, 8);
+                } else if (!path.startsWith("/")) {
+                    path = "/" + path;
+                }
+                tcfg.put("path", path.trim());
+                if (dto.getWsHost() != null && !dto.getWsHost().trim().isEmpty()) {
+                    tcfg.put("host", dto.getWsHost().trim());
+                }
+                in.setConfigJson(tcfg.toJSONString());
+            }
         } else if ("hysteria2".equals(protocol) || "tuic".equals(protocol) || "anytls".equals(protocol)) {
             // 自签 TLS(Hy2/TUIC 走 QUIC/UDP,AnyTLS 走 TCP;客户端 insecure);证书由节点端自动生成
             in.setSecurity("tls");
@@ -907,7 +925,14 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
                 return SingboxUtil.buildShadowsocksLink(ip, port, cfg.getString("method"), cfg.getString("password"), remark);
             }
             case "vmess":
-                return SingboxUtil.buildVmessLink(uuid, ip, port, remark);
+            {
+                // vmess 可能带 ws:把 configJson 里存的 net/path/host 一起给出去,
+                // 否则客户端拿到的链接是 tcp 的,连不上(服务端在 ws 上等)
+                JSONObject vcfg = in.getConfigJson() == null || in.getConfigJson().isEmpty()
+                        ? new JSONObject() : JSON.parseObject(in.getConfigJson());
+                return SingboxUtil.buildVmessLink(uuid, ip, port, remark,
+                        vcfg.getString("net"), vcfg.getString("path"), vcfg.getString("host"));
+            }
             case "trojan":
                 return SingboxUtil.buildTrojanRealityLink(password, ip, port, in.getSni(), in.getPublicKey(), in.getShortId(), remark);
             case "hysteria2":

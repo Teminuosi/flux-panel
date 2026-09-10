@@ -281,6 +281,23 @@ public class SingboxUtil {
         inbound.put("tag", in.getTag());
         inbound.put("listen", "127.0.0.1");
         inbound.put("listen_port", in.getListenPort());
+        // 传输层:configJson 里存了 net=ws 才写 transport,否则保持原来的裸 TCP。
+        // 【为什么 gost 那一跳不用管】它是裸字节转发(handler=relay),
+        // 而 ws 握手本质就是 HTTP over TCP,原样透得过去。
+        JSONObject vcfg = parseConfig(in.getConfigJson());
+        if ("ws".equalsIgnoreCase(vcfg.getString("net"))) {
+            JSONObject tr = new JSONObject();
+            tr.put("type", "ws");
+            String p = vcfg.getString("path");
+            if (p != null && !p.isEmpty()) tr.put("path", p);
+            String h = vcfg.getString("host");
+            if (h != null && !h.isEmpty()) {
+                JSONObject headers = new JSONObject();
+                headers.put("Host", h);
+                tr.put("headers", headers);
+            }
+            inbound.put("transport", tr);
+        }
 
         JSONArray userArr = new JSONArray();
         if (users != null) {
@@ -321,6 +338,20 @@ public class SingboxUtil {
 
     /** VMess 客户端链接(vmess://base64(json)) */
     public static String buildVmessLink(String uuid, String serverIp, Integer port, String remark) {
+        return buildVmessLink(uuid, serverIp, port, remark, null, null);
+    }
+
+    /**
+     * VMess 客户端链接。net=ws 时把 path/host 填进去 ——
+     * 这几个字段本来就在下面的 JSON 里当空占位,填上即可,不用改结构。
+     */
+    public static String buildVmessLink(String uuid, String serverIp, Integer port, String remark,
+                                        String net, String path) {
+        return buildVmessLink(uuid, serverIp, port, remark, net, path, null);
+    }
+
+    public static String buildVmessLink(String uuid, String serverIp, Integer port, String remark,
+                                        String net, String path, String host) {
         JSONObject v = new JSONObject();
         v.put("v", "2");
         v.put("ps", remark == null ? "" : remark);
@@ -329,10 +360,11 @@ public class SingboxUtil {
         v.put("id", uuid);
         v.put("aid", "0");
         v.put("scy", "auto");
-        v.put("net", "tcp");
+        boolean ws = "ws".equalsIgnoreCase(net);
+        v.put("net", ws ? "ws" : "tcp");
         v.put("type", "none");
-        v.put("host", "");
-        v.put("path", "");
+        v.put("host", ws && host != null ? host : "");
+        v.put("path", ws && path != null ? path : "");
         v.put("tls", "");
         v.put("sni", "");
         String b64 = Base64.getEncoder().encodeToString(v.toJSONString().getBytes(StandardCharsets.UTF_8));
