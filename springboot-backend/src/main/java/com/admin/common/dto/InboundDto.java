@@ -29,4 +29,13 @@ public class InboundDto {
     private Long landingId;
 
     private String remark;
+
+    /** 传输层:留空/"tcp" = 默认裸 TCP;"ws" = WebSocket。目前只有 vmess 支持 */
+    private String transport;
+
+    /** ws 的路径,如 /abc。留空自动生成一个随机路径 —— 固定用 / 太容易被扫 */
+    private String wsPath;
+
+    /** ws 的 Host 头。自建直连用不上,套 CDN 时才需要填成你的域名 */
+    private String wsHost;
 }

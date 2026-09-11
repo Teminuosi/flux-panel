@@ -111,11 +111,19 @@ export default function InboundPage() {
     if (isReality(createForm.protocol) && !createForm.sni) return toast.error("Reality 协议需要填 SNI");
     setCreateLoading(true);
     try {
+      // 界面上「VMess + WebSocket」是一个独立选项,但后端没有 vmess-ws 这个协议 ——
+      // 传输层是 vmess 的修饰,不是另一种协议。所以在这儿拆开:protocol=vmess + transport=ws。
+      const isWs = createForm.protocol === "vmess-ws";
       const payload: any = {
         nodeId: createForm.nodeId,
-        protocol: createForm.protocol,
+        protocol: isWs ? "vmess" : createForm.protocol,
         remark: createForm.remark,
       };
+      if (isWs) {
+        payload.transport = "ws";
+        payload.wsPath = createForm.wsPath || "";   // 留空由后端随机生成
+        payload.wsHost = createForm.wsHost || "";
+      }
       if (isReality(createForm.protocol)) {
         payload.sni = cleanSni(createForm.sni);
         payload.dest = createForm.dest;
@@ -490,6 +498,8 @@ export default function InboundPage() {
                   ? "无域名借 Reality(SNI 借壳),抗封锁强(推荐)"
                   : createForm.protocol === "vmess"
                   ? "VMess:TCP 无 TLS,无域名,兼容各种老客户端"
+                  : createForm.protocol === "vmess-ws"
+                  ? "VMess over WebSocket。裸 ws(不带 TLS),给需要挂 Nginx/Caddy 反代或 CDN 的人用;直连场景没必要选它,不如用 Reality"
                   : ["hysteria2", "tuic", "anytls"].includes(createForm.protocol)
                   ? "自签证书(无域名);客户端需勾选\"允许不安全/insecure\"。Hy2/TUIC 是 QUIC,快"
                   : "Shadowsocks-2022:无 TLS、任何客户端都通,简单稳"
@@ -498,6 +508,7 @@ export default function InboundPage() {
               <SelectItem key="vless">VLESS-Reality(无域名,推荐)</SelectItem>
               <SelectItem key="trojan">Trojan-Reality(无域名)</SelectItem>
               <SelectItem key="vmess">VMess(无域名,兼容老客户端)</SelectItem>
+              <SelectItem key="vmess-ws">VMess + WebSocket(可挂 CDN/反代)</SelectItem>
               <SelectItem key="hysteria2">Hysteria2(QUIC,快,自签证书)</SelectItem>
               <SelectItem key="tuic">TUIC(QUIC,自签证书)</SelectItem>
               <SelectItem key="anytls">AnyTLS(自签证书)</SelectItem>
@@ -512,6 +523,24 @@ export default function InboundPage() {
                 <SelectItem key={n.id}>{n.name}</SelectItem>
               ))}
             </Select>
+            {createForm.protocol === "vmess-ws" && (
+              <>
+                <Input
+                  label="WebSocket 路径"
+                  placeholder="留空自动随机,如 /a1b2c3d4"
+                  value={createForm.wsPath || ""}
+                  onChange={(e) => setCreateForm({ ...createForm, wsPath: e.target.value })}
+                  description="留空会自动生成一个随机路径。固定用 / 是被主动探测扫出来的头号特征,别图省事"
+                />
+                <Input
+                  label="Host 头(可选)"
+                  placeholder="套 CDN 时填你的域名,直连留空"
+                  value={createForm.wsHost || ""}
+                  onChange={(e) => setCreateForm({ ...createForm, wsHost: e.target.value })}
+                  description="只有前面挂了 CDN 或反代才需要;直连用不上"
+                />
+              </>
+            )}
             {isReality(createForm.protocol) && (
               <>
                 <Autocomplete
