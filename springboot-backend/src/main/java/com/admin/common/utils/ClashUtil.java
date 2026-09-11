@@ -35,6 +35,21 @@ public class ClashUtil {
     public static Map<String, Object> toProxy(String protocol, String name, String server, Integer port,
                                               String uuid, String password, String sni,
                                               String publicKey, String shortId, String ssMethod) {
+        return toProxy(protocol, name, server, port, uuid, password, sni, publicKey, shortId, ssMethod, null, null);
+    }
+
+    /**
+     * wsPath / wsHost:vmess 走 WebSocket 时才有值。
+     *
+     * 【为什么这儿非改不可】Clash 订阅是这个类单独生成的,跟 buildVmessLink 是两条路。
+     * 只改那边的话,同一个 ws 节点在 v2rayN 里是好的、在 Clash / Mihomo 里
+     * 因为 network 还写着 tcp 而连不上 —— 而且两边都"有节点、看着正常",
+     * 用户只会觉得"Clash 不好使",很难想到是订阅生成的问题。
+     */
+    public static Map<String, Object> toProxy(String protocol, String name, String server, Integer port,
+                                              String uuid, String password, String sni,
+                                              String publicKey, String shortId, String ssMethod,
+                                              String wsPath, String wsHost) {
         if (protocol == null || server == null || port == null) {
             return null;
         }
@@ -74,7 +89,19 @@ public class ClashUtil {
                 // 这条是裸的,没有 TLS,所以不能写 tls: true
                 p.put("alterId", 0);
                 p.put("cipher", "auto");
-                p.put("network", "tcp");
+                if (wsPath != null && !wsPath.isEmpty()) {
+                    p.put("network", "ws");
+                    Map<String, Object> ws = new LinkedHashMap<>();
+                    ws.put("path", wsPath);
+                    if (wsHost != null && !wsHost.isEmpty()) {
+                        Map<String, Object> headers = new LinkedHashMap<>();
+                        headers.put("Host", wsHost);
+                        ws.put("headers", headers);
+                    }
+                    p.put("ws-opts", ws);
+                } else {
+                    p.put("network", "tcp");
+                }
                 p.put("udp", true);
                 return p;
             }

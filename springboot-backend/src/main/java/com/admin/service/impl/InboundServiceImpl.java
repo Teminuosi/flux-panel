@@ -842,12 +842,23 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
                 JSONObject cfg = JSON.parseObject(in.getConfigJson() == null ? "{}" : in.getConfigJson());
                 ssMethod = cfg.getString("method");
             }
+            // vmess 可能带 ws:和链接订阅读同一份 configJson,两边必须一致
+            String wsPath = null, wsHost = null;
+            if ("vmess".equalsIgnoreCase(in.getProtocol()) && in.getConfigJson() != null
+                    && !in.getConfigJson().isEmpty()) {
+                JSONObject vc = JSON.parseObject(in.getConfigJson());
+                if ("ws".equalsIgnoreCase(vc.getString("net"))) {
+                    wsPath = vc.getString("path");
+                    wsHost = vc.getString("host");
+                }
+            }
             java.util.Map<String, Object> proxy = ClashUtil.toProxy(
                     in.getProtocol(),
                     ClashUtil.uniqueName(remark, usedNames),
                     ip, forward.getInPort(),
                     iu.getUuid(), iu.getPassword(), in.getSni(),
-                    in.getPublicKey(), in.getShortId(), ssMethod);
+                    in.getPublicKey(), in.getShortId(), ssMethod,
+                    wsPath, wsHost);
             if (proxy != null) {
                 proxies.add(proxy);
             }
